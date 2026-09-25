@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_stack" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "surface-bright": "#383941", "error-container": "#93000a", "secondary": "#adc6ff", "surface-container-high": "#292931", "background": "#12131a", "on-surface-variant": "#c2c6d6", "on-secondary-container": "#00285c", "on-surface": "#e3e1ec", "on-error": "#690005", "error": "#ffb4ab", "on-tertiary": "#502400", "on-tertiary-fixed-variant": "#723600", "secondary-fixed": "#d8e2ff", "on-primary": "#002e6a", "tertiary-fixed": "#ffdcc6", "on-primary-container": "#00285d", "on-secondary-fixed": "#001a41", "on-primary-fixed-variant": "#004395", "primary-fixed": "#d8e2ff", "on-error-container": "#ffdad6", "outline-variant": "#424754", "secondary-fixed-dim": "#adc6ff", "surface-dim": "#12131a", "surface-tint": "#adc6ff", "surface-container-highest": "#33343c", "tertiary-fixed-dim": "#ffb786", "surface-container-low": "#1a1b22", "tertiary": "#ffb786", "tertiary-container": "df7412", "inverse-primary": "#005ac2", "surface-container": "#1e1f26", "surface-container-lowest": "#0d0e15", "secondary-container": "#4b8eff", "outline": "#8c909f", "surface": "#12131a", "inverse-surface": "#e3e1ec", "surface-variant": "#33343c", "primary-fixed-dim": "#adc6ff", "primary-container": "#4d8eff", "on-primary-fixed": "#001a42", "on-tertiary-fixed": "#311400", "on-secondary": "#002e69", "inverse-on-surface": "#2f3038", "on-secondary-fixed-variant": "#004493", "on-tertiary-container": "#461f00", "on-background": "#e3e1ec", "primary": "#adc6ff" }, borderRadius: { "DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px" }, spacing: { "margin-md": "1.5rem", "space-md": "0.75rem", "margin-lg": "2rem", "space-xs": "0.25rem", "space-xl": "1.5rem", "gutter": "1rem", "space-sm": "0.5rem", "margin": "1rem", "space-lg": "1rem", "gutter-lg": "1.5rem" }, fontFamily: { "headline-md": ["Inter"], "headline-lg": ["Inter"], "display": ["Inter"], "body-md": ["Inter"], "body-lg": ["Inter"], "headline-sm": ["Inter"], "mono-sm": ["JetBrains Mono"], "label-md": ["Inter"], "headline-lg-mobile": ["Inter"], "label-sm": ["Inter"], "body-sm": ["Inter"] }, fontSize: { "headline-md": ["22px", { lineHeight: "28px", letterSpacing: "-0.02em", fontWeight: "600" }], "headline-lg": ["32px", { lineHeight: "38px", letterSpacing: "-0.025em", fontWeight: "600" }], "display": ["48px", { lineHeight: "52px", letterSpacing: "-0.03em", fontWeight: "600" }], "body-md": ["13px", { lineHeight: "18px", letterSpacing: "-0.005em", fontWeight: "400" }], "body-lg": ["15px", { lineHeight: "22px", letterSpacing: "-0.01em", fontWeight: "400" }], "headline-sm": ["17px", { lineHeight: "22px", letterSpacing: "-0.015em", fontWeight: "600" }], "mono-sm": ["11px", { lineHeight: "14px", letterSpacing: "0em", fontWeight: "400" }], "label-md": ["13px", { lineHeight: "16px", letterSpacing: "-0.005em", fontWeight: "500" }], "headline-lg-mobile": ["26px", { lineHeight: "32px", letterSpacing: "-0.02em", fontWeight: "600" }], "label-sm": ["11px", { lineHeight: "14px", letterSpacing: "0.01em", fontWeight: "500" }], "body-sm": ["12px", { lineHeight: "16px", letterSpacing: "0em", fontWeight: "400" }] } } } };</script><style>@layer base{html,body{width:100%;margin:0;padding:0;min-height:100%;background-color:#12131a;}body{overscroll-behavior-y:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface text-on-surface font-body-md text-body-md antialiased"><header class="fixed top-0 w-full z-50 pt-safe bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-14 px-gutter flex items-center justify-between"><button aria-label="Go back" class="w-11 h-11 -ml-space-xs flex items-center justify-center rounded-full text-on-surface-variant hover:text-on-surface active:bg-surface-container-high transition-colors" onclick="history.back()"><span class="material-symbols-outlined text-[20px]">arrow_back</span></button><h1 class="font-headline-sm text-headline-sm text-on-surface text-center truncate max-w-[200px]">Vault Seed Phrase</h1><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></header><main class="flex flex-col relative w-full min-h-screen bg-surface px-margin pt-14 pb-safe"><div class="flex flex-col w-full min-w-0 pb-margin-lg text-on-surface select-none">
+<!-- Ambient Atmospheric Backing Glow -->
+<div class="relative w-full flex flex-col items-center justify-center pt-space-xl pb-space-lg overflow-hidden">
+<div class="absolute -top-12 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
+<div class="absolute w-48 h-48 bg-secondary-container/15 rounded-full blur-2xl pointer-events-none"></div>
+<!-- Concentric Orbital Cryptographic Key Visualizer -->
+<div class="relative w-52 h-52 flex items-center justify-center">
+<!-- Outer Orbit Ring -->
+<svg class="absolute inset-0 w-full h-full animate-[spin_24s_linear_infinite]" fill="none" viewbox="0 0 208 208">
+<circle class="text-surface-container-highest" cx="104" cy="104" r="98" stroke="currentColor" stroke-dasharray="4 8" stroke-width="1.2"></circle>
+<circle class="fill-primary" cx="104" cy="6" r="3"></circle>
+<circle class="fill-secondary" cx="18" cy="140" r="2"></circle>
+</svg>
+<!-- Middle Orbit Ring (Reverse Spin) -->
+<svg class="absolute w-40 h-40 animate-[spin_14s_linear_infinite_reverse]" fill="none" viewbox="0 0 160 160">
+<circle class="text-surface-container-high" cx="80" cy="80" r="74" stroke="currentColor" stroke-dasharray="16 10 2 10" stroke-width="1.5"></circle>
+<circle class="fill-primary-container" cx="80" cy="6" r="3.5"></circle>
+</svg>
+<!-- Inner Pulsing Orbit Ring with Particle Sparkles -->
+<svg class="absolute w-28 h-28 animate-[spin_8s_ease-in-out_infinite]" fill="none" viewbox="0 0 112 112">
+<circle class="text-outline-variant" cx="56" cy="56" r="50" stroke="currentColor" stroke-dasharray="6 6" stroke-width="1"></circle>
+<circle class="fill-primary" cx="56" cy="6" r="2.5"></circle>
+<circle class="fill-tertiary" cx="102" cy="76" r="2"></circle>
+</svg>
+<!-- Central Shield Vault Halo -->
+<div class="relative z-10 w-20 h-20 rounded-full bg-surface-container flex items-center justify-center shadow-2xl">
+<div class="absolute inset-0 rounded-full bg-primary/20 animate-ping opacity-30"></div>
+<div class="w-16 h-16 rounded-full bg-surface-container-lowest flex items-center justify-center">
+<span class="material-symbols-outlined text-[32px] text-primary" style="font-variation-settings: 'FILL' 1;">lock</span>
+</div>
+</div>
+</div>
+<!-- Title and Subtitle -->
+<div class="mt-space-lg text-center px-gutter">
+<h2 class="font-headline-md text-headline-md text-on-surface tracking-tight">Creating your private vault…</h2>
+<div class="mt-space-xs flex items-center justify-center gap-space-xs text-on-surface-variant font-mono-sm text-mono-sm">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+<span id="entropy-bits">AES-256-GCM · PBKDF2-HMAC-SHA512</span>
+</div>
+</div>
+</div>
+<!-- Progress Bar Matrix -->
+<div class="w-full px-margin-md mt-space-sm">
+<div class="bg-surface-container-low p-space-md rounded-DEFAULT space-y-space-sm">
+<div class="flex items-center justify-between font-label-sm text-label-sm">
+<span class="text-on-surface-variant uppercase tracking-wider">Initialization Progress</span>
+<span class="font-mono-sm text-mono-sm text-primary font-medium" id="progress-percent">75%</span>
+</div>
+<!-- Segmented Track Bar (4 Phases) -->
+<div class="grid grid-cols-4 gap-1.5 w-full h-1.5 bg-surface-container-lowest rounded-full overflow-hidden p-0.5">
+<div class="h-full bg-primary rounded-full transition-all duration-500"></div>
+<div class="h-full bg-primary rounded-full transition-all duration-500"></div>
+<div class="h-full bg-primary/80 rounded-full animate-pulse transition-all duration-500"></div>
+<div class="h-full bg-surface-container-highest rounded-full transition-all duration-500"></div>
+</div>
+</div>
+</div>
+<!-- Cryptographic Staged Milestones Checklist -->
+<div class="w-full px-margin-md mt-space-md space-y-2">
+<!-- Step 1: Complete -->
+<div class="flex items-center gap-space-md px-space-md py-space-sm rounded-DEFAULT bg-surface-container-low transition-all">
+<div class="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">check</span>
+</div>
+<div class="flex flex-col min-w-0 flex-1">
+<span class="font-label-md text-label-md text-on-surface">Generating 256-bit master key</span>
+<span class="font-mono-sm text-mono-sm text-on-surface-variant truncate">0x9F4C…82EA · 600,000 rounds</span>
+</div>
+<span class="font-mono-sm text-mono-sm text-primary font-medium">Done</span>
+</div>
+<!-- Step 2: Complete -->
+<div class="flex items-center gap-space-md px-space-md py-space-sm rounded-DEFAULT bg-surface-container-low transition-all">
+<div class="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">check</span>
+</div>
+<div class="flex flex-col min-w-0 flex-1">
+<span class="font-label-md text-label-md text-on-surface">Initializing zero-knowledge container</span>
+<span class="font-mono-sm text-mono-sm text-on-surface-variant truncate">Salt derived · Ephemeral nonce bound</span>
+</div>
+<span class="font-mono-sm text-mono-sm text-primary font-medium">Done</span>
+</div>
+<!-- Step 3: Active Processing State -->
+<div class="flex items-center gap-space-md px-space-md py-space-sm rounded-DEFAULT bg-surface-container-high transition-all">
+<div class="w-6 h-6 rounded-full bg-secondary/20 text-secondary flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[16px] animate-[spin_2s_linear_infinite]">sync</span>
+</div>
+<div class="flex flex-col min-w-0 flex-1">
+<div class="flex items-center gap-1.5">
+<span class="font-label-md text-label-md text-on-surface font-medium">Allocating encrypted telegram chunks</span>
+<span class="w-2 h-2 rounded-full bg-secondary animate-ping"></span>
+</div>
+<span class="font-mono-sm text-mono-sm text-secondary truncate">Distributing payload across 4 shards…</span>
+</div>
+<span class="font-mono-sm text-mono-sm text-secondary font-medium">Syncing</span>
+</div>
+<!-- Step 4: Pending State -->
+<div class="flex items-center gap-space-md px-space-md py-space-sm rounded-DEFAULT bg-surface-container-low opacity-60">
+<div class="w-6 h-6 rounded-full bg-surface-container-highest text-outline flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[14px]">radio_button_unchecked</span>
+</div>
+<div class="flex flex-col min-w-0 flex-1">
+<span class="font-label-md text-label-md text-on-surface-variant">Finalizing biometrics &amp; PIN unlock</span>
+<span class="font-mono-sm text-mono-sm text-outline truncate">Secure enclave hardware registration</span>
+</div>
+<span class="font-mono-sm text-mono-sm text-outline">Queued</span>
+</div>
+</div>
+<!-- Reassurance & Zero-Knowledge Security Badge Callout -->
+<div class="w-full px-margin-md mt-space-lg">
+<div class="p-space-md rounded-DEFAULT bg-surface-container-lowest flex items-start gap-space-md">
+<div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center shrink-0 text-primary mt-0.5">
+<span class="material-symbols-outlined text-[18px]">verified_user</span>
+</div>
+<div class="flex flex-col gap-0.5">
+<span class="font-label-md text-label-md text-on-surface font-medium">Hardware-Level Cryptography</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
+          Your encryption key is generated locally on this device. Telegram and CloudNest servers cannot decrypt your data.
+        </p>
+</div>
+</div>
+</div>
+<!-- Completion & Transition Action Bar -->
+<div class="w-full px-margin-md mt-space-xl flex flex-col items-center">
+<button class="w-full py-3.5 px-gutter rounded-full bg-primary text-on-primary font-label-md text-label-md font-semibold flex items-center justify-center gap-2 shadow-lg hover:opacity-95 active:scale-[0.98] transition-all" id="navigate-btn">
+<span id="btn-text">Building Secure Enclave…</span>
+<span class="material-symbols-outlined text-[18px] animate-[spin_2s_linear_infinite]" id="btn-icon">hourglass_empty</span>
+</button>
+<div class="mt-space-md flex items-center gap-1.5 text-on-surface-variant font-mono-sm text-mono-sm">
+<span class="material-symbols-outlined text-[14px] text-outline">timer</span>
+<span>Autonomous handover armed: <span class="text-on-surface font-medium">00:03</span></span>
+</div>
+</div>
+</div>
+<script>
+  (function initVaultExperience() {
+    const btnText = document.getElementById('btn-text');
+    const btnIcon = document.getElementById('btn-icon');
+    const navigateBtn = document.getElementById('navigate-btn');
+    const progressPercent = document.getElementById('progress-percent');
+
+    // Simulate completion pulse and auto-transition state
+    setTimeout(() => {
+      if (progressPercent) progressPercent.innerText = "100%";
+      if (btnText) btnText.innerText = "Vault ready → auto-navigating";
+      if (btnIcon) {
+        btnIcon.classList.remove('animate-[spin_2s_linear_infinite]');
+        btnIcon.innerText = "arrow_forward";
+      }
+      if (navigateBtn) {
+        navigateBtn.classList.add('bg-primary-container', 'text-on-primary');
+      }
+    }, 2800);
+  })();
+</script></main></body></html>

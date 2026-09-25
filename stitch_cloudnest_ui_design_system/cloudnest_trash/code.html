@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_stack" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "secondary": "#adc6ff", "background": "#12131a", "secondary-fixed": "#d8e2ff", "on-primary": "#002e6a", "surface-container-highest": "#33343c", "on-secondary-fixed-variant": "#004493", "on-tertiary-container": "#461f00", "surface-container": "#1e1f26", "on-background": "#e3e1ec", "on-secondary-fixed": "#001a41", "secondary-container": "#4b8eff", "on-tertiary-fixed-variant": "#723600", "on-surface-variant": "#c2c6d6", "tertiary": "#ffb786", "on-tertiary-fixed": "#311400", "primary-container": "#4d8eff", "surface-tint": "#adc6ff", "inverse-on-surface": "#2f3038", "on-primary-fixed-variant": "#004395", "tertiary-fixed": "#ffdcc6", "surface-container-lowest": "#0d0e15", "on-surface": "#e3e1ec", "outline": "#8c909f", "on-tertiary": "#502400", "surface-dim": "#12131a", "on-secondary": "#002e69", "surface-bright": "#383941", "surface": "#12131a", "on-primary-container": "#00285d", "surface-container-high": "#292931", "surface-container-low": "#1a1b22", "on-error": "#690005", "primary-fixed-dim": "#adc6ff", "on-error-container": "#ffdad6", "error": "#ffb4ab", "inverse-surface": "#e3e1ec", "on-secondary-container": "#00285c", "primary": "#adc6ff", "inverse-primary": "#005ac2", "error-container": "#93000a", "secondary-fixed-dim": "#adc6ff", "on-primary-fixed": "#001a42", "outline-variant": "#424754", "tertiary-container": "#df7412", "primary-fixed": "#d8e2ff", "surface-variant": "#33343c", "tertiary-fixed-dim": "#ffb786" }, "borderRadius": { "DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px" }, "spacing": { "space-lg": "1rem", "gutter-lg": "1.5rem", "space-xs": "0.25rem", "margin": "1rem", "space-xl": "1.5rem", "space-md": "0.75rem", "margin-md": "1.5rem", "margin-lg": "2rem", "space-sm": "0.5rem", "gutter": "1rem" }, "fontFamily": { "headline-lg-mobile": ["Inter"], "headline-lg": ["Inter"], "label-sm": ["Inter"], "label-md": ["Inter"], "display": ["Inter"], "headline-md": ["Inter"], "body-lg": ["Inter"], "mono-sm": ["JetBrains Mono"], "headline-sm": ["Inter"], "body-sm": ["Inter"], "body-md": ["Inter"] }, "fontSize": { "headline-lg-mobile": ["26px", { "lineHeight": "32px", "letterSpacing": "-0.02em", "fontWeight": "600" }], "headline-lg": ["32px", { "lineHeight": "38px", "letterSpacing": "-0.025em", "fontWeight": "600" }], "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.01em", "fontWeight": "500" }], "label-md": ["13px", { "lineHeight": "16px", "letterSpacing": "-0.005em", "fontWeight": "500" }], "display": ["48px", { "lineHeight": "52px", "letterSpacing": "-0.03em", "fontWeight": "600" }], "headline-md": ["22px", { "lineHeight": "28px", "letterSpacing": "-0.02em", "fontWeight": "600" }], "body-lg": ["15px", { "lineHeight": "22px", "letterSpacing": "-0.01em", "fontWeight": "400" }], "mono-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0em", "fontWeight": "400" }], "headline-sm": ["17px", { "lineHeight": "22px", "letterSpacing": "-0.015em", "fontWeight": "600" }], "body-sm": ["12px", { "lineHeight": "16px", "letterSpacing": "0em", "fontWeight": "400" }], "body-md": ["13px", { "lineHeight": "18px", "letterSpacing": "-0.005em", "fontWeight": "400" }] } } } }</script><style>@layer base{html,body{width:100vw;margin:0;padding:0;}body{overscroll-behavior:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface text-on-surface font-body-md text-body-md min-h-screen flex flex-col selection:bg-primary-container selection:text-on-primary-container"><header class="fixed top-0 w-full z-50 pt-safe bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-gutter flex items-center justify-between"><div class="flex items-center gap-space-sm"><button class="w-11 h-11 -ml-space-sm flex items-center justify-center text-on-surface hover:text-primary transition-colors" onclick="history.back()"><span class="material-symbols-outlined text-[20px]">arrow_back_ios_new</span></button><h1 class="font-headline-sm text-headline-sm text-on-surface tracking-tight truncate max-w-[200px]">Cloudnest   Trash</h1></div><div class="flex items-center gap-space-sm"><button class="px-space-md py-1.5 rounded-full bg-error-container/20 text-error hover:bg-error-container/30 transition-colors font-label-md text-label-md flex items-center gap-1"><span>Empty Trash</span></button></div></div></header><main class="flex-1 flex flex-col relative w-full pt-16 pb-safe bg-surface px-gutter"><div class="flex flex-col w-full pb-28">
+<!-- Retention Warning Banner -->
+<div class="mt-space-sm mb-space-md p-space-md rounded-DEFAULT bg-surface-container-high/70 shadow-sm relative overflow-hidden backdrop-blur-md">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-tertiary"></div>
+<div class="flex items-start gap-space-sm">
+<span class="material-symbols-outlined text-tertiary text-[20px] shrink-0 mt-0.5" style="font-variation-settings: 'FILL' 1;">auto_delete</span>
+<div class="flex flex-col gap-0.5">
+<p class="font-label-md text-label-md text-on-surface font-semibold tracking-tight">Retention Window Policy</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">
+          Items are automatically and permanently purged after 30 days. Encryption keys for purged chunks cannot be recovered.
+        </p>
+</div>
+</div>
+</div>
+<!-- Telemetry Bar & Storage Summary -->
+<div class="flex items-center justify-between p-space-md bg-surface-container-low rounded-DEFAULT mb-space-md shadow-sm">
+<div class="flex items-center gap-space-sm">
+<div class="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center text-primary shrink-0">
+<span class="material-symbols-outlined text-[18px]">cloud_queue</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface font-semibold">14 items in purge queue</p>
+<p class="font-mono-sm text-mono-sm text-on-surface-variant">1.84 GB occupied</p>
+</div>
+</div>
+<span class="px-space-sm py-1 rounded-full bg-surface-container-highest text-on-surface-variant font-mono-sm text-mono-sm flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary animate-pulse"></span>
+      Pending Purge
+    </span>
+</div>
+<!-- Filter & Sort Strip -->
+<div class="flex items-center justify-between pb-space-sm mb-space-xs">
+<button class="flex items-center gap-1.5 px-space-sm py-1 rounded-full bg-surface-container hover:bg-surface-container-high transition-colors text-on-surface-variant active:scale-95" id="sortDropdownBtn">
+<span class="material-symbols-outlined text-[16px] text-primary">swap_vert</span>
+<span class="font-label-sm text-label-sm">Date Deleted (Newest)</span>
+<span class="material-symbols-outlined text-[14px]">expand_more</span>
+</button>
+<button class="flex items-center gap-1 px-space-sm py-1 text-primary hover:text-on-primary-container font-label-sm text-label-sm transition-colors active:scale-95" id="selectAllBtn" onclick="toggleSelectAll()">
+<span class="material-symbols-outlined text-[16px]" id="selectAllIcon">select_all</span>
+<span id="selectAllLabel">Select All</span>
+</button>
+</div>
+<!-- Deleted Items List -->
+<div class="flex flex-col gap-space-sm" id="trashList">
+<!-- Item 1: XLSX -->
+<div class="trash-item group flex flex-col p-space-md rounded-DEFAULT bg-surface-container-low shadow-sm transition-all duration-200" data-id="1">
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex items-start gap-space-sm min-w-0">
+<label class="relative flex items-center justify-center p-0.5 cursor-pointer mt-0.5">
+<input class="file-checkbox peer sr-only" onchange="updateSelectionCount()" type="checkbox"/>
+<div class="w-4 h-4 rounded bg-surface-container-highest flex items-center justify-center peer-checked:bg-primary transition-all">
+<span class="material-symbols-outlined text-[12px] text-on-primary opacity-0 peer-checked:opacity-100 font-bold">check</span>
+</div>
+</label>
+<div class="w-10 h-10 rounded-DEFAULT bg-surface-container-highest flex items-center justify-center text-primary shrink-0">
+<span class="material-symbols-outlined text-[22px]">table_chart</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate tracking-tight">old_financial_model_2023.xlsx</span>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="font-mono-sm text-mono-sm text-on-surface-variant">1.8 MB</span>
+<span class="text-outline-variant font-mono-sm text-mono-sm">•</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Deleted 2d ago</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between mt-space-md pt-space-xs">
+<span class="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">schedule</span>
+          Expires in 28 days
+        </span>
+<div class="flex items-center gap-space-sm">
+<button class="px-space-md py-1 rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-on-primary transition-all font-label-sm text-label-sm flex items-center gap-1 active:scale-95" onclick="restoreItem(1)">
+<span class="material-symbols-outlined text-[14px]">history</span>
+<span>Restore</span>
+</button>
+<button class="w-7 h-7 rounded-full bg-error-container/20 text-error hover:bg-error hover:text-on-error transition-all flex items-center justify-center active:scale-95" onclick="deleteForever(1)" title="Delete Forever">
+<span class="material-symbols-outlined text-[15px]">delete_forever</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Item 2: KEY -->
+<div class="trash-item group flex flex-col p-space-md rounded-DEFAULT bg-surface-container-low shadow-sm transition-all duration-200" data-id="2">
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex items-start gap-space-sm min-w-0">
+<label class="relative flex items-center justify-center p-0.5 cursor-pointer mt-0.5">
+<input class="file-checkbox peer sr-only" onchange="updateSelectionCount()" type="checkbox"/>
+<div class="w-4 h-4 rounded bg-surface-container-highest flex items-center justify-center peer-checked:bg-primary transition-all">
+<span class="material-symbols-outlined text-[12px] text-on-primary opacity-0 peer-checked:opacity-100 font-bold">check</span>
+</div>
+</label>
+<div class="w-10 h-10 rounded-DEFAULT bg-surface-container-highest flex items-center justify-center text-tertiary shrink-0">
+<span class="material-symbols-outlined text-[22px]">slideshow</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate tracking-tight">draft_pitch_deck_v1.key</span>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="font-mono-sm text-mono-sm text-on-surface-variant">42.5 MB</span>
+<span class="text-outline-variant font-mono-sm text-mono-sm">•</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Deleted 5d ago</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between mt-space-md pt-space-xs">
+<span class="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">schedule</span>
+          Expires in 25 days
+        </span>
+<div class="flex items-center gap-space-sm">
+<button class="px-space-md py-1 rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-on-primary transition-all font-label-sm text-label-sm flex items-center gap-1 active:scale-95" onclick="restoreItem(2)">
+<span class="material-symbols-outlined text-[14px]">history</span>
+<span>Restore</span>
+</button>
+<button class="w-7 h-7 rounded-full bg-error-container/20 text-error hover:bg-error hover:text-on-error transition-all flex items-center justify-center active:scale-95" onclick="deleteForever(2)" title="Delete Forever">
+<span class="material-symbols-outlined text-[15px]">delete_forever</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Item 3: MOV -->
+<div class="trash-item group flex flex-col p-space-md rounded-DEFAULT bg-surface-container-low shadow-sm transition-all duration-200" data-id="3">
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex items-start gap-space-sm min-w-0">
+<label class="relative flex items-center justify-center p-0.5 cursor-pointer mt-0.5">
+<input class="file-checkbox peer sr-only" onchange="updateSelectionCount()" type="checkbox"/>
+<div class="w-4 h-4 rounded bg-surface-container-highest flex items-center justify-center peer-checked:bg-primary transition-all">
+<span class="material-symbols-outlined text-[12px] text-on-primary opacity-0 peer-checked:opacity-100 font-bold">check</span>
+</div>
+</label>
+<div class="w-10 h-10 rounded-DEFAULT bg-surface-container-highest flex items-center justify-center text-secondary shrink-0">
+<span class="material-symbols-outlined text-[22px]">movie</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate tracking-tight">raw_footage_take3_uncompressed.mov</span>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="font-mono-sm text-mono-sm text-on-surface-variant">1.4 GB</span>
+<span class="text-outline-variant font-mono-sm text-mono-sm">•</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Deleted 12d ago</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between mt-space-md pt-space-xs">
+<span class="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">schedule</span>
+          Expires in 18 days
+        </span>
+<div class="flex items-center gap-space-sm">
+<button class="px-space-md py-1 rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-on-primary transition-all font-label-sm text-label-sm flex items-center gap-1 active:scale-95" onclick="restoreItem(3)">
+<span class="material-symbols-outlined text-[14px]">history</span>
+<span>Restore</span>
+</button>
+<button class="w-7 h-7 rounded-full bg-error-container/20 text-error hover:bg-error hover:text-on-error transition-all flex items-center justify-center active:scale-95" onclick="deleteForever(3)" title="Delete Forever">
+<span class="material-symbols-outlined text-[15px]">delete_forever</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Item 4: PEM Key -->
+<div class="trash-item group flex flex-col p-space-md rounded-DEFAULT bg-surface-container-low shadow-sm transition-all duration-200" data-id="4">
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex items-start gap-space-sm min-w-0">
+<label class="relative flex items-center justify-center p-0.5 cursor-pointer mt-0.5">
+<input class="file-checkbox peer sr-only" onchange="updateSelectionCount()" type="checkbox"/>
+<div class="w-4 h-4 rounded bg-surface-container-highest flex items-center justify-center peer-checked:bg-primary transition-all">
+<span class="material-symbols-outlined text-[12px] text-on-primary opacity-0 peer-checked:opacity-100 font-bold">check</span>
+</div>
+</label>
+<div class="w-10 h-10 rounded-DEFAULT bg-surface-container-highest flex items-center justify-center text-primary-fixed shrink-0">
+<span class="material-symbols-outlined text-[22px]">key</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate tracking-tight">server_access_keys_deprecated.pem</span>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="font-mono-sm text-mono-sm text-on-surface-variant">4 KB</span>
+<span class="text-outline-variant font-mono-sm text-mono-sm">•</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Deleted 19d ago</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between mt-space-md pt-space-xs">
+<span class="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">schedule</span>
+          Expires in 11 days
+        </span>
+<div class="flex items-center gap-space-sm">
+<button class="px-space-md py-1 rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-on-primary transition-all font-label-sm text-label-sm flex items-center gap-1 active:scale-95" onclick="restoreItem(4)">
+<span class="material-symbols-outlined text-[14px]">history</span>
+<span>Restore</span>
+</button>
+<button class="w-7 h-7 rounded-full bg-error-container/20 text-error hover:bg-error hover:text-on-error transition-all flex items-center justify-center active:scale-95" onclick="deleteForever(4)" title="Delete Forever">
+<span class="material-symbols-outlined text-[15px]">delete_forever</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Item 5: PDF (Urgent Expiry) -->
+<div class="trash-item group flex flex-col p-space-md rounded-DEFAULT bg-surface-container-low shadow-sm transition-all duration-200 relative overflow-hidden" data-id="5">
+<div class="absolute -right-12 -top-12 w-24 h-24 bg-error-container/10 rounded-full blur-xl pointer-events-none"></div>
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex items-start gap-space-sm min-w-0">
+<label class="relative flex items-center justify-center p-0.5 cursor-pointer mt-0.5">
+<input class="file-checkbox peer sr-only" onchange="updateSelectionCount()" type="checkbox"/>
+<div class="w-4 h-4 rounded bg-surface-container-highest flex items-center justify-center peer-checked:bg-primary transition-all">
+<span class="material-symbols-outlined text-[12px] text-on-primary opacity-0 peer-checked:opacity-100 font-bold">check</span>
+</div>
+</label>
+<div class="w-10 h-10 rounded-DEFAULT bg-surface-container-highest flex items-center justify-center text-error shrink-0">
+<span class="material-symbols-outlined text-[22px]">picture_as_pdf</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-1.5 min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate tracking-tight">scan_receipt_december.pdf</span>
+</div>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="font-mono-sm text-mono-sm text-on-surface-variant">320 KB</span>
+<span class="text-outline-variant font-mono-sm text-mono-sm">•</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Deleted 28d ago</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between mt-space-md pt-space-xs">
+<span class="px-space-sm py-0.5 rounded-full bg-error-container/30 text-error font-label-sm text-label-sm font-semibold flex items-center gap-1 animate-pulse">
+<span class="material-symbols-outlined text-[14px]">warning</span>
+          Purging in 2 days
+        </span>
+<div class="flex items-center gap-space-sm">
+<button class="px-space-md py-1 rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-on-primary transition-all font-label-sm text-label-sm flex items-center gap-1 active:scale-95" onclick="restoreItem(5)">
+<span class="material-symbols-outlined text-[14px]">history</span>
+<span>Restore</span>
+</button>
+<button class="w-7 h-7 rounded-full bg-error-container/20 text-error hover:bg-error hover:text-on-error transition-all flex items-center justify-center active:scale-95" onclick="deleteForever(5)" title="Delete Forever">
+<span class="material-symbols-outlined text-[15px]">delete_forever</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Empty State (Hidden initially) -->
+<div class="hidden flex-col items-center justify-center py-16 px-gutter text-center" id="emptyTrashState">
+<div class="w-16 h-16 rounded-full bg-surface-container-high flex items-center justify-center mb-space-md text-on-surface-variant">
+<span class="material-symbols-outlined text-[32px]">delete_sweep</span>
+</div>
+<p class="font-headline-sm text-headline-sm text-on-surface mb-1">Trash is completely empty</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant max-w-xs">
+      Purged items and cryptographic indices have been reclaimed. Storage is clean.
+    </p>
+</div>
+<!-- Bulk Action Bottom Dock -->
+<div class="fixed bottom-4 left-4 right-4 z-40 max-w-[calc(100vw-2rem)] mx-auto">
+<div class="p-space-sm bg-surface-container-high/90 backdrop-blur-xl rounded-DEFAULT shadow-xl flex items-center justify-between gap-space-sm">
+<button class="flex-1 py-2.5 px-space-md rounded-full bg-surface-container-highest hover:bg-surface-bright text-on-surface font-label-md text-label-md flex items-center justify-center gap-1.5 transition-colors active:scale-98" onclick="restoreAll()">
+<span class="material-symbols-outlined text-[16px] text-primary">restore</span>
+<span>Restore All</span>
+</button>
+<button class="flex-1 py-2.5 px-space-md rounded-full bg-error-container/30 hover:bg-error-container/50 text-error font-label-md text-label-md flex items-center justify-center gap-1.5 transition-colors active:scale-98" onclick="emptyTrashNow()">
+<span class="material-symbols-outlined text-[16px]">delete_forever</span>
+<span>Empty Trash Now</span>
+</button>
+</div>
+</div>
+</div>
+<script>
+  function updateSelectionCount() {
+    const checkboxes = document.querySelectorAll('.file-checkbox');
+    const checked = document.querySelectorAll('.file-checkbox:checked');
+    const selectAllBtn = document.getElementById('selectAllLabel');
+    const selectAllIcon = document.getElementById('selectAllIcon');
+    if (checked.length === checkboxes.length && checkboxes.length > 0) {
+      selectAllBtn.textContent = 'Deselect All';
+      selectAllIcon.textContent = 'deselect';
+    } else {
+      selectAllBtn.textContent = checked.length > 0 ? `Selected (${checked.length})` : 'Select All';
+      selectAllIcon.textContent = 'select_all';
+    }
+  }
+
+  function toggleSelectAll() {
+    const checkboxes = document.querySelectorAll('.file-checkbox');
+    const checked = document.querySelectorAll('.file-checkbox:checked');
+    const shouldCheck = checked.length !== checkboxes.length;
+    checkboxes.forEach(cb => cb.checked = shouldCheck);
+    updateSelectionCount();
+  }
+
+  function restoreItem(id) {
+    const item = document.querySelector(`.trash-item[data-id="${id}"]`);
+    if (item) {
+      item.classList.add('opacity-0', '-translate-x-4');
+      setTimeout(() => {
+        item.remove();
+        checkEmptyState();
+      }, 200);
+    }
+  }
+
+  function deleteForever(id) {
+    const item = document.querySelector(`.trash-item[data-id="${id}"]`);
+    if (item) {
+      item.classList.add('opacity-0', 'scale-95');
+      setTimeout(() => {
+        item.remove();
+        checkEmptyState();
+      }, 200);
+    }
+  }
+
+  function restoreAll() {
+    const items = document.querySelectorAll('.trash-item');
+    items.forEach((item, index) => {
+      setTimeout(() => {
+        item.classList.add('opacity-0', '-translate-x-4');
+        setTimeout(() => {
+          item.remove();
+          checkEmptyState();
+        }, 150);
+      }, index * 60);
+    });
+  }
+
+  function emptyTrashNow() {
+    const items = document.querySelectorAll('.trash-item');
+    items.forEach((item, index) => {
+      setTimeout(() => {
+        item.classList.add('opacity-0', 'scale-95');
+        setTimeout(() => {
+          item.remove();
+          checkEmptyState();
+        }, 150);
+      }, index * 60);
+    });
+  }
+
+  function checkEmptyState() {
+    const remaining = document.querySelectorAll('.trash-item');
+    if (remaining.length === 0) {
+      const emptyState = document.getElementById('emptyTrashState');
+      if (emptyState) emptyState.classList.remove('hidden');
+      const sortStrip = document.getElementById('sortDropdownBtn')?.parentElement;
+      if (sortStrip) sortStrip.classList.add('hidden');
+    }
+  }
+</script></main></body></html>

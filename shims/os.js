@@ -1,0 +1,15 @@
+module.exports = {
+  type: () => 'Android',
+  release: () => '14',
+  platform: () => 'android',
+  arch: () => 'arm64',
+  cpus: () => [{ model: 'ARM' }],
+  endianness: () => 'LE',
+  totalmem: () => 4 * 1024 * 1024 * 1024,
+  freemem: () => 2 * 1024 * 1024 * 1024,
+  homedir: () => '/data/user/0/com.cloudnest.vault',
+  tmpdir: () => '/data/user/0/com.cloudnest.vault/cache',
+  hostname: () => 'localhost',
+  networkInterfaces: () => ({}),
+  EOL: '\n',
+};
