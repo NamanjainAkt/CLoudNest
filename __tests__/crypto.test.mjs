@@ -2,6 +2,9 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import crypto from 'node:crypto';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
 
 function formatKeyFingerprint(keyHex) {
   if (!keyHex || keyHex.length < 16) return '0x9F4C…82EA';
@@ -42,4 +45,37 @@ test('Cryptography & Key Management', async (t) => {
     const hash = crypto.createHash('sha256').update(input).digest('hex');
     assert.strictEqual(hash.length, 64);
   });
+
+  await t.test('Secure random number generation in browser environment', async () => {
+    const origDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+    try {
+      Object.defineProperty(globalThis, 'crypto', {
+        value: {
+          getRandomValues: (arr) => {
+            crypto.randomFillSync(arr);
+            return arr;
+          },
+        },
+        configurable: true,
+        writable: true,
+      });
+
+      const browserPath = require.resolve('randombytes/browser.js');
+      delete require.cache[browserPath];
+      const randomBytesBrowser = require(browserPath);
+
+      const nonce16 = randomBytesBrowser(16);
+      assert.strictEqual(nonce16.length, 16);
+      assert(nonce16.some((b) => b !== 0), 'Nonce16 must contain non-zero entropy');
+
+      const nonce32 = randomBytesBrowser(32);
+      assert.strictEqual(nonce32.length, 32);
+      assert(nonce32.some((b) => b !== 0), 'Nonce32 must contain non-zero entropy');
+    } finally {
+      if (origDescriptor) {
+        Object.defineProperty(globalThis, 'crypto', origDescriptor);
+      }
+    }
+  });
 });
+

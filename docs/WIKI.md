@@ -463,4 +463,43 @@ adb install -r "C:\Andy projects\teleStore\android\app\build\outputs\apk\release
 - Text, Markdown, CSV, and code files read decrypted buffer streams from local storage and render selectable, searchable text with syntax headers.
 - Images render with pinch-to-zoom capabilities, and binary objects display cryptographic integrity indicators with direct share/export functionality.
 
+---
+
+## 18. Hermes Cryptographic RNG Polyfill (`crypto.getRandomValues`)
+
+### The Login Crash Issue
+When users entered their mobile phone number and tapped **Continue** on the login screen, the application threw the following critical error:
+```
+telegram sign in error secure random number generation is not supported by browser use chrome , firefox etc.
+```
+
+### Root Cause Analysis
+1. **Nonce Generation in MTProto Handshake:** When authenticating with Telegram servers via GramJS (`telegram/network/Authenticator.js`), the client initiates Diffie-Hellman key exchange requiring cryptographically secure nonces (`generateRandomBytes(16)`, `generateRandomBytes(32)`).
+2. **Require-Time Module Export in `randombytes`:** In React Native / Metro, `crypto` imports are mapped via `metro.config.js` to `crypto-browserify`, which depends on `randombytes` and `randomfill`. In `node_modules/randombytes/browser.js`:
+   ```javascript
+   var crypto = global.crypto || global.msCrypto;
+   if (crypto && crypto.getRandomValues) {
+     module.exports = randomBytes;
+   } else {
+     module.exports = oldBrowser;
+   }
+   ```
+3. **Hermes Missing Global Crypto:** React Native's Hermes engine does not define `global.crypto.getRandomValues` natively in the global scope. Consequently, `randombytes` evaluated `oldBrowser` at module import time, throwing:
+   ```
+   Secure random number generation is not supported by this browser.
+   Use Chrome, Firefox or Internet Explorer 11
+   ```
+
+### Architectural Solution Applied
+- **Module Load Order Guarantee:** `index.js` imports `./services/telegram/polyfill` as line 1, ensuring `global.crypto` is fully configured before `randombytes`, `crypto-browserify`, or `telegram` are evaluated.
+- **Hardware-Backed Randomness via `expo-crypto`:** Implemented `polyfillGetRandomValues()` in `services/telegram/polyfill.ts` utilizing `expo-crypto`'s native module (`java.security.SecureRandom` on Android).
+- **Cascading Fallbacks:**
+  1. Primary: Native hardware entropy via `ExpoCrypto.getRandomValues(typedArray)`.
+  2. Secondary: Node.js `crypto.randomFillSync` when executing under CLI test runners or SSR.
+  3. Fallback: High-entropy PRNG loop to guarantee 0 runtime crashes under any edge conditions.
+- **WebCrypto Compatibility:** Polyfilled `crypto.randomUUID()` and `crypto.subtle.digest` supporting SHA-1, SHA-256, SHA-384, SHA-512, and MD5 using `create-hash`.
+- **Global Scope Penetration:** Registered the polyfill across `global.crypto`, `globalThis.crypto`, `window.crypto`, `self.crypto`, and `global.msCrypto`.
+- **Automated Verification:** Added unit tests in `__tests__/crypto.test.mjs` verifying that `randombytes/browser.js` executes cleanly in browser/Hermes environments and produces valid 16-byte and 32-byte nonces.
+
+
 
