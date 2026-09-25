@@ -46,13 +46,15 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
   const [textContent, setTextContent] = useState<string | null>(null);
   const [loadingContent, setLoadingContent] = useState(false);
 
-  if (!file) return null;
+  const isImage = file
+    ? ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'].includes(file.mimeType.toLowerCase()) ||
+      ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(file.extension.toLowerCase())
+    : false;
 
-  const isImage = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'].includes(file.mimeType.toLowerCase()) ||
-    ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(file.extension.toLowerCase());
-
-  const isCodeOrText = ['text/plain', 'text/markdown', 'application/json', 'text/javascript'].includes(file.mimeType.toLowerCase()) ||
-    ['txt', 'md', 'json', 'js', 'ts', 'log', 'csv'].includes(file.extension.toLowerCase());
+  const isCodeOrText = file
+    ? ['text/plain', 'text/markdown', 'application/json', 'text/javascript'].includes(file.mimeType.toLowerCase()) ||
+      ['txt', 'md', 'json', 'js', 'ts', 'log', 'csv'].includes(file.extension.toLowerCase())
+    : false;
 
   useEffect(() => {
     let isMounted = true;
@@ -78,6 +80,8 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
       isMounted = false;
     };
   }, [visible, file, isCodeOrText]);
+
+  if (!file) return null;
 
   const handleShare = async () => {
     try {

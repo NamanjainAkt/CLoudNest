@@ -406,11 +406,13 @@ export default function FileDetailsScreen() {
       </ScrollView>
 
       {/* In-App Fullscreen Preview Modal */}
-      <FullScreenPreviewModal
-        visible={previewModalVisible}
-        onClose={() => setPreviewModalVisible(false)}
-        file={file}
-      />
+      {file && (
+        <FullScreenPreviewModal
+          visible={previewModalVisible}
+          onClose={() => setPreviewModalVisible(false)}
+          file={file}
+        />
+      )}
 
       {/* Rename File Modal */}
       <RenameFileModal

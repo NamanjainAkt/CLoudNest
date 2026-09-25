@@ -552,5 +552,32 @@ When a user selected any media, photo, or document to upload, `BackgroundSyncMan
      ```
    - This ensures 100% reliability across all Android versions, scoped storage providers, camera captures, and image pickers.
 
+---
+
+## 21. React Rules of Hooks Compliance in FullScreenPreviewModal
+
+### 21.1 Background & Root Cause
+In React, hook execution order must remain completely identical across every render cycle. In `FullScreenPreviewModal.tsx`, an early return was positioned before `useEffect`:
+```tsx
+const insets = useSafeAreaInsets();
+const { colors, typography, radii } = useTheme();
+const [zoomLevel, setZoomLevel] = useState(1);
+const [textContent, setTextContent] = useState<string | null>(null);
+const [loadingContent, setLoadingContent] = useState(false);
+
+if (!file) return null; // Early return before useEffect
+
+useEffect(() => { ... });
+```
+When `FileDetailsScreen` (`app/file/[fileId].tsx`) mounted, `file` was initially `null` while reading SQLite, executing 5 hooks. When the file query resolved and `file` was populated with the `FileRecord`, the early return was skipped, causing React to encounter `useEffect` for the first time on the second render. React halted execution with:
+`[Error: Rendered more hooks than during the previous render.]`
+
+### 21.2 Resolution
+1. **Unconditional Hook Execution:**
+   - Moved `useEffect` and all variable computations (`isImage`, `isCodeOrText`) above any conditional statements.
+   - Positioned `if (!file) return null;` strictly after all React hooks have executed.
+2. **Conditional Rendering Guard:**
+   - Guarded `<FullScreenPreviewModal>` invocation in `app/file/[fileId].tsx` with `{file && (<FullScreenPreviewModal ... />)}` to guarantee that the modal is only mounted when valid file metadata is available.
+
 
 
