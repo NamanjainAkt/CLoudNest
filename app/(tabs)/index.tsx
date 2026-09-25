@@ -86,7 +86,7 @@ export default function HomeDashboardScreen() {
           fileName,
           fileSize: asset.fileSize || 1024 * 1024 * 3,
           mimeType: asset.mimeType || 'image/jpeg',
-          targetFolderId: 'folder_media',
+          targetFolderId: null,
           totalChunks: 6,
         });
         router.push('/(tabs)/uploads');
@@ -109,7 +109,7 @@ export default function HomeDashboardScreen() {
           fileName,
           fileSize: asset.fileSize || 1024 * 1024 * 2.5,
           mimeType: 'image/jpeg',
-          targetFolderId: 'folder_media',
+          targetFolderId: null,
           totalChunks: 5,
         });
         router.push('/(tabs)/uploads');

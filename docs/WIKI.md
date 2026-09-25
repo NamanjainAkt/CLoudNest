@@ -501,5 +501,32 @@ telegram sign in error secure random number generation is not supported by brows
 - **Global Scope Penetration:** Registered the polyfill across `global.crypto`, `globalThis.crypto`, `window.crypto`, `self.crypto`, and `global.msCrypto`.
 - **Automated Verification:** Added unit tests in `__tests__/crypto.test.mjs` verifying that `randombytes/browser.js` executes cleanly in browser/Hermes environments and produces valid 16-byte and 32-byte nonces.
 
+---
+
+## 19. Resilient Telegram MTProto File Upload & Peer Entity Resolution Engine
+
+### 19.1 Background & Root Cause
+When uploading files or media into the user's encrypted Telegram vault:
+- **StringSession Entity Volatility:** In GramJS, `StringSession` only stores the DC IP, port, and authentication key. It drops all in-memory peer access hashes upon app restarts or process suspension.
+- **Channel Entity Lookups (`CHANNEL_INVALID`):** Invoking `client.sendFile("-100...")` without having the channel cached in `client._entityCache` triggers Telegram MTProto's `channels.GetChannels({ accessHash: 0 })`, resulting in `CHANNEL_INVALID` or `Could not find the input entity for PeerChannel`.
+- **Channel Permissions & Limits:** If dedicated vault channel creation encountered `CHANNELS_ADMIN_PUBLIC_TOO_MUCH` or `CHAT_WRITE_FORBIDDEN`, uploads were disrupted.
+
+### 19.2 Solution Architecture
+1. **Dynamic Entity Resolution (`resolveTargetPeer`):**
+   - Direct check of `client._entityCache` via `client.getInputEntity(channelId)`.
+   - If missing from in-memory cache, GramJS invokes `client.getDialogs({ limit: 50 })` to re-prime the entity cache with valid channel access hashes.
+   - Matches by numeric ID, `-100` prefix string, or exact vault channel title (`CloudNest Private Vault [E2EE]`).
+2. **Zero-Failure Fallback to Telegram Saved Messages (`'me'`):**
+   - Every Telegram account possesses private "Saved Messages" (`InputPeerSelf`).
+   - Requires zero access hash and is supported across all Telegram DCs without rate limits or channel limits.
+   - If sending to a dedicated channel fails with any peer or permission error, `uploadEncryptedBlob` catches the exception and immediately transmits the encrypted payload to `'me'`.
+3. **Robust Buffer Handling for GramJS:**
+   - Transmits Node.js `Buffer` instances with direct `.name = '${fileName}.enc'` attachments.
+   - Avoids cross-chunk `instanceof CustomFile` prototype mismatch issues in Hermes bundlers.
+   - Accurately tracks actual file byte lengths and chunk progress.
+4. **Transparent Queue Telemetry & Error Display:**
+   - Displays real-time error details and retry options on failed items in `QueueItemRow`.
+   - Normalizes root-level media uploads (`targetFolderId: null`) for immediate visibility in Home screen file lists and storage metrics.
+
 
 

@@ -84,7 +84,7 @@ export const QueueItemRow = memo<QueueItemRowProps>(({
               {item.status === 'completed'
                 ? `${sizeMB} MB • Completed`
                 : item.status === 'failed'
-                ? `Upload Failed • Tap retry`
+                ? (item.errorMessage ? `Failed: ${item.errorMessage}` : 'Upload Failed • Tap retry')
                 : `${(item.fileSize * item.progress / (1024 * 1024)).toFixed(1)} MB of ${sizeMB} MB • ${percentText}%`}
             </Text>
           </View>

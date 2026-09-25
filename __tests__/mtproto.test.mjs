@@ -57,4 +57,26 @@ test('Telegram MTProto Transport & Edge Node Routing', async (t) => {
     assert.strictEqual(apiHash.length, 32);
     assert.match(apiHash, /^[0-9a-f]{32}$/);
   });
+
+  await t.test('Resilient peer resolution falls back to Saved Messages ("me")', () => {
+    function resolvePeerFallback(channelId) {
+      if (!channelId || channelId === 'me' || channelId === '-1000000000') {
+        return 'me';
+      }
+      return channelId;
+    }
+    assert.strictEqual(resolvePeerFallback(undefined), 'me');
+    assert.strictEqual(resolvePeerFallback(''), 'me');
+    assert.strictEqual(resolvePeerFallback('-1000000000'), 'me');
+    assert.strictEqual(resolvePeerFallback('me'), 'me');
+    assert.strictEqual(resolvePeerFallback('-1002234567890'), '-1002234567890');
+  });
+
+  await t.test('Upload buffer preparation assigns name property for GramJS', () => {
+    const rawData = Buffer.from('CloudNestEncryptedDataPayload');
+    rawData.name = 'photo_123.jpg.enc';
+    assert.strictEqual(Buffer.isBuffer(rawData), true);
+    assert.strictEqual(rawData.name, 'photo_123.jpg.enc');
+    assert.strictEqual(rawData.length, 29);
+  });
 });

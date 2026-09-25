@@ -72,6 +72,7 @@ class BackgroundSyncManager {
       }
 
       const rawBuffer = Buffer.from(rawBase64, 'base64');
+      const actualSize = rawBuffer.byteLength;
       const rawArrayBuffer = rawBuffer.buffer.slice(
         rawBuffer.byteOffset,
         rawBuffer.byteOffset + rawBuffer.byteLength
@@ -99,7 +100,7 @@ class BackgroundSyncManager {
             nextItem.id,
             scaledProgress,
             currentPart,
-            `${((nextItem.fileSize * progress) / (1024 * 1024)).toFixed(1)} MB`
+            `${((actualSize * progress) / (1024 * 1024)).toFixed(1)} MB`
           );
         }
       );
@@ -112,7 +113,7 @@ class BackgroundSyncManager {
         id: fileId,
         folderId: nextItem.targetFolderId,
         name: nextItem.fileName,
-        size: nextItem.fileSize,
+        size: actualSize || nextItem.fileSize,
         mimeType: nextItem.mimeType,
         extension: ext,
         telegramMessageId: uploadRes.messageId,

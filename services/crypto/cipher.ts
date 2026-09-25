@@ -1,4 +1,5 @@
 // services/crypto/cipher.ts
+import '../telegram/polyfill';
 import crypto from 'crypto-browserify';
 import { Buffer } from 'buffer';
 

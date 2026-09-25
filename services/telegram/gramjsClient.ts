@@ -228,43 +228,106 @@ class GramJSClientService {
     return session;
   }
 
+  private async resolveTargetPeer(channelId?: string): Promise<any> {
+    if (!channelId || channelId === 'me' || channelId === '-1000000000') {
+      return 'me';
+    }
+
+    const client = this.client;
+    if (!client) return 'me';
+
+    // 1. Direct entity cache lookup
+    try {
+      const entity = await client.getInputEntity(channelId);
+      if (entity) return entity;
+    } catch {
+      // Entity not found in in-memory cache, proceed to refresh dialogs
+    }
+
+    // 2. Fetch dialogs to prime in-memory entity cache with access hashes
+    try {
+      const dialogs = await client.getDialogs({ limit: 50 });
+      const found = dialogs.find(
+        (d) =>
+          d.id?.toString() === channelId ||
+          d.entity?.id?.toString() === channelId ||
+          `-100${d.entity?.id?.toString()}` === channelId ||
+          (d.isChannel && d.title === 'CloudNest Private Vault [E2EE]')
+      );
+      if (found && found.entity) {
+        return await client.getInputEntity(found.entity);
+      }
+    } catch (err) {
+      console.warn('[GramJS] Dialog entity refresh warning:', err);
+    }
+
+    // 3. Resilient fallback: Saved Messages ('me')
+    console.log('[GramJS] Channel entity unresolvable, falling back to Saved Messages ("me")');
+    return 'me';
+  }
+
   async uploadEncryptedBlob(
     fileBuffer: ArrayBuffer,
     fileName: string,
     onProgress?: (progress: number, currentPart: number, totalParts: number) => void
   ): Promise<MTProtoUploadResult> {
     const client = await this.ensureConnected();
-    const targetPeer = (this.currentSession?.channelId && this.currentSession.channelId !== '-1000000000')
-      ? this.currentSession.channelId
-      : 'me';
+    let targetPeer: any = 'me';
+    try {
+      targetPeer = await this.resolveTargetPeer(this.currentSession?.channelId);
+    } catch {
+      targetPeer = 'me';
+    }
+
     const chunkSize = 512 * 1024;
     const totalParts = Math.max(1, Math.ceil(fileBuffer.byteLength / chunkSize));
 
     try {
       const buffer = Buffer.from(fileBuffer);
-      const customFile = new CustomFile(
-        `${fileName}.enc`,
-        buffer.length,
-        '',
-        buffer
-      );
+      (buffer as any).name = `${fileName}.enc`;
 
-      const sentMsg = await client.sendFile(targetPeer, {
-        file: customFile,
-        caption: `[CloudNest E2EE] SHA-256 Verified Encrypted Chunk`,
-        forceDocument: true,
-        progressCallback: (progress: number) => {
-          if (onProgress) {
-            const currentPart = Math.min(totalParts, Math.max(1, Math.ceil(progress * totalParts)));
-            onProgress(progress, currentPart, totalParts);
-          }
-        },
-      });
+      let sentMsg: any = null;
+      let finalPeerStr = typeof targetPeer === 'string' ? targetPeer : 'me';
+
+      try {
+        sentMsg = await client.sendFile(targetPeer, {
+          file: buffer,
+          caption: `[CloudNest E2EE] SHA-256 Verified Encrypted Chunk`,
+          forceDocument: true,
+          progressCallback: (progress: number) => {
+            if (onProgress) {
+              const currentPart = Math.min(totalParts, Math.max(1, Math.ceil(progress * totalParts)));
+              onProgress(progress, currentPart, totalParts);
+            }
+          },
+        });
+      } catch (peerErr: any) {
+        // If upload to dedicated channel failed (e.g. invalid entity, permission, or channel deleted),
+        // seamlessly fallback to Telegram Saved Messages ('me') so user never suffers upload failure.
+        if (targetPeer !== 'me') {
+          console.warn('[GramJS] Upload to channel failed, falling back to Saved Messages ("me"):', peerErr);
+          targetPeer = 'me';
+          finalPeerStr = 'me';
+          sentMsg = await client.sendFile('me', {
+            file: buffer,
+            caption: `[CloudNest E2EE] SHA-256 Verified Encrypted Chunk`,
+            forceDocument: true,
+            progressCallback: (progress: number) => {
+              if (onProgress) {
+                const currentPart = Math.min(totalParts, Math.max(1, Math.ceil(progress * totalParts)));
+                onProgress(progress, currentPart, totalParts);
+              }
+            },
+          });
+        } else {
+          throw peerErr;
+        }
+      }
 
       const messageId = sentMsg ? sentMsg.id : Date.now();
       return {
         messageId,
-        channelId: targetPeer,
+        channelId: finalPeerStr,
         bytesUploaded: fileBuffer.byteLength,
         partsCount: totalParts,
       };
