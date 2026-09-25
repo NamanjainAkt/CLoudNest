@@ -31,7 +31,7 @@ interface VaultState {
   renameFile: (fileId: string, newName: string) => Promise<void>;
   moveFile: (fileId: string, targetFolderId: string | null) => Promise<void>;
   addUploadQueueItem: (item: Omit<UploadQueueItem, 'id' | 'status' | 'progress' | 'currentChunk' | 'speed' | 'retryCount' | 'createdAt' | 'updatedAt'>) => Promise<void>;
-  updateQueueItemProgress: (id: string, progress: number, currentChunk: number, speed: string) => void;
+  updateQueueItemProgress: (id: string, progress: number, currentChunk: number, speed: string, totalChunks?: number) => void;
   markQueueItemComplete: (id: string, newFile: Omit<FileRecord, 'createdAt' | 'updatedAt'>) => Promise<void>;
   markQueueItemFailed: (id: string, error: string) => void;
   cancelQueueItem: (id: string) => void;
@@ -169,11 +169,18 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     set((state) => ({ uploadQueue: [newItem, ...state.uploadQueue] }));
   },
 
-  updateQueueItemProgress: (id, progress, currentChunk, speed) => {
+  updateQueueItemProgress: (id, progress, currentChunk, speed, totalChunks) => {
     set((state) => ({
       uploadQueue: state.uploadQueue.map((item) =>
         item.id === id
-          ? { ...item, progress, currentChunk, speed, updatedAt: Date.now() }
+          ? {
+              ...item,
+              progress,
+              currentChunk,
+              speed,
+              totalChunks: totalChunks !== undefined ? totalChunks : item.totalChunks,
+              updatedAt: Date.now(),
+            }
           : item
       ),
     }));

@@ -1,10 +1,8 @@
 // services/sync/backgroundSync.ts
 import * as FileSystem from 'expo-file-system/legacy';
-import { Buffer } from 'buffer';
 import { useVaultStore } from '../../store/useVaultStore';
 import { MTProtoClient } from '../telegram/mtprotoClient';
 import { SecureStorageService } from '../crypto/secureStore';
-import { encryptBuffer } from '../crypto/cipher';
 import { UploadQueueItem } from '../types/models';
 
 class BackgroundSyncManager {
@@ -60,72 +58,53 @@ class BackgroundSyncManager {
         throw new Error('Telegram session not active. Please sign in to sync.');
       }
 
-      // 1. Read file from disk
-      store.updateQueueItemProgress(nextItem.id, 0.1, 1, 'Reading file…');
-      let rawBase64 = '';
+      // 1. Get exact file size
+      let actualSize = nextItem.fileSize;
       try {
-        if (FileSystem && typeof FileSystem.readAsStringAsync === 'function') {
-          rawBase64 = await FileSystem.readAsStringAsync(nextItem.filePath, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-        } else {
-          throw new Error('FileSystem.readAsStringAsync not available');
+        const fileInfo = await FileSystem.getInfoAsync(nextItem.filePath);
+        if (fileInfo.exists && typeof fileInfo.size === 'number' && fileInfo.size > 0) {
+          actualSize = fileInfo.size;
         }
-      } catch (readErr: any) {
-        // Resilient fallback for content:// or non-standard URIs using fetch & FileReader
-        try {
-          const resp = await fetch(nextItem.filePath);
-          const blob = await resp.blob();
-          rawBase64 = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              const res = reader.result as string;
-              const b64 = res.includes(',') ? res.split(',')[1] : res;
-              resolve(b64);
-            };
-            reader.onerror = (e) => reject(e);
-            reader.readAsDataURL(blob);
-          });
-        } catch (fetchErr: any) {
-          throw new Error(`Failed to read file: ${readErr?.message || fetchErr?.message || readErr}`);
-        }
-      }
+      } catch {}
 
-      const rawBuffer = Buffer.from(rawBase64, 'base64');
-      const actualSize = rawBuffer.byteLength;
-      const rawArrayBuffer = rawBuffer.buffer.slice(
-        rawBuffer.byteOffset,
-        rawBuffer.byteOffset + rawBuffer.byteLength
+      const totalParts = Math.max(1, Math.ceil(actualSize / (512 * 1024)));
+      const startTime = Date.now();
+
+      // 2. Stream chunked encryption & upload directly to Telegram MTProto
+      store.updateQueueItemProgress(
+        nextItem.id,
+        0.05,
+        1,
+        `0.0 / ${(actualSize / (1024 * 1024)).toFixed(1)} MB`,
+        totalParts
       );
 
-      // 2. Client-Side AES-256-GCM Zero-Knowledge Encryption
-      store.updateQueueItemProgress(nextItem.id, 0.25, 1, 'Encrypting (AES-256-GCM)…');
-      const encResult = await encryptBuffer(rawArrayBuffer, masterKey);
-
-      // Convert encrypted ciphertext back to ArrayBuffer for MTProto upload
-      const encBuffer = Buffer.from(encResult.ciphertextBase64, 'base64');
-      const encArrayBuffer = encBuffer.buffer.slice(
-        encBuffer.byteOffset,
-        encBuffer.byteOffset + encBuffer.byteLength
-      );
-
-      // 3. Upload to Telegram MTProto / WSS
-      store.updateQueueItemProgress(nextItem.id, 0.4, 1, 'Uploading to Telegram…');
-      const uploadRes = await MTProtoClient.uploadFileBlob(
-        encArrayBuffer,
+      const uploadRes = await MTProtoClient.uploadFileStreaming(
+        nextItem.filePath,
         nextItem.fileName,
-        (progress, currentPart, totalParts) => {
-          const scaledProgress = 0.4 + progress * 0.55;
+        actualSize,
+        masterKey,
+        (progress, currentPart, total) => {
+          const sentBytes = Math.min(actualSize, currentPart * (512 * 1024));
+          const sentMB = (sentBytes / (1024 * 1024)).toFixed(1);
+          const totalMB = (actualSize / (1024 * 1024)).toFixed(1);
+          const elapsedSec = (Date.now() - startTime) / 1000;
+          const speedText =
+            elapsedSec > 0
+              ? `${(sentBytes / (1024 * 1024) / elapsedSec).toFixed(1)} MB/s`
+              : '...';
+
           store.updateQueueItemProgress(
             nextItem.id,
-            scaledProgress,
+            progress,
             currentPart,
-            `${((actualSize * progress) / (1024 * 1024)).toFixed(1)} MB`
+            `${sentMB} / ${totalMB} MB • ${speedText}`,
+            total
           );
         }
       );
 
-      // 4. Mark Complete in local SQLite Virtual File System
+      // 3. Mark Complete in local SQLite Virtual File System
       const ext = nextItem.fileName.split('.').pop() || 'bin';
       const fileId = `file_${Date.now()}`;
 
@@ -139,8 +118,8 @@ class BackgroundSyncManager {
         telegramMessageId: uploadRes.messageId,
         telegramChannelId: uploadRes.channelId,
         isEncrypted: true,
-        encryptionIv: encResult.ivHex,
-        sha256Hash: encResult.sha256Hash,
+        encryptionIv: uploadRes.ivHex || '',
+        sha256Hash: uploadRes.sha256Hash || '',
         localCachePath: nextItem.filePath,
         isFavorite: false,
         isDeleted: false,

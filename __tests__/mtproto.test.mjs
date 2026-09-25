@@ -79,4 +79,41 @@ test('Telegram MTProto Transport & Edge Node Routing', async (t) => {
     assert.strictEqual(rawData.name, 'photo_123.jpg.enc');
     assert.strictEqual(rawData.length, 29);
   });
+
+  await t.test('MTProto Large File (>10MB) and APK chunk calculations', () => {
+    // 6 MB file -> 12 parts of 512KB (<= 10MB uses SaveFilePart)
+    const sixMB = 6 * 1024 * 1024;
+    assert.strictEqual(calculateMtprotoParts(sixMB), 12);
+    assert.strictEqual(sixMB > 10 * 1024 * 1024, false);
+
+    // 196 MB APK file -> 392 parts of 512KB (> 10MB uses SaveBigFilePart)
+    const apkSize = 196 * 1024 * 1024;
+    assert.strictEqual(calculateMtprotoParts(apkSize), 392);
+    assert.strictEqual(apkSize > 10 * 1024 * 1024, true);
+  });
+
+  await t.test('AES-256-CTR stream encryption maintains exact byte length with 0 padding', async () => {
+    const crypto = await import('node:crypto');
+    const key = crypto.randomBytes(32);
+    const iv = crypto.randomBytes(16);
+
+    const chunk1 = crypto.randomBytes(512 * 1024); // 512KB
+    const chunk2 = crypto.randomBytes(256 * 1024); // 256KB
+
+    const cipher = crypto.createCipheriv('aes-256-ctr', key, iv);
+    const enc1 = cipher.update(chunk1);
+    const enc2 = cipher.update(chunk2);
+    const finalEnc = cipher.final();
+
+    assert.strictEqual(enc1.length, 512 * 1024);
+    assert.strictEqual(enc2.length, 256 * 1024);
+    assert.strictEqual(finalEnc.length, 0);
+
+    const fullCipher = Buffer.concat([enc1, enc2, finalEnc]);
+    assert.strictEqual(fullCipher.length, (512 + 256) * 1024);
+
+    const decipher = crypto.createDecipheriv('aes-256-ctr', key, iv);
+    const dec = Buffer.concat([decipher.update(fullCipher), decipher.final()]);
+    assert.deepStrictEqual(dec, Buffer.concat([chunk1, chunk2]));
+  });
 });

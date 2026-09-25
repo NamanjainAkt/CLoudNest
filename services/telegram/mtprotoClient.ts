@@ -132,6 +132,22 @@ class NativeMTProtoClient {
     return await GramJSClient.uploadEncryptedBlob(fileBuffer, fileName, onProgress);
   }
 
+  async uploadFileStreaming(
+    filePath: string,
+    fileName: string,
+    fileSize: number,
+    masterKeyHex: string,
+    onProgress?: (progress: number, currentPart: number, totalParts: number) => void
+  ): Promise<MTProtoUploadResult> {
+    return await GramJSClient.uploadFileStreaming(
+      filePath,
+      fileName,
+      fileSize,
+      masterKeyHex,
+      onProgress
+    );
+  }
+
   async signOut(): Promise<void> {
     this.connected = false;
     this.currentSession = null;

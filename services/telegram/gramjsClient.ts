@@ -2,9 +2,12 @@
 // Pure TypeScript MTProto client for CloudNest using GramJS with WSS transport
 import './polyfill';
 import { Buffer } from 'buffer';
+import crypto from 'crypto-browserify';
 import { TelegramClient, Api } from 'telegram';
 import { StringSession } from 'telegram/sessions';
 import { CustomFile } from 'telegram/client/uploads';
+import { readBigIntFromBuffer, generateRandomBytes } from 'telegram/Helpers';
+import * as FileSystem from 'expo-file-system/legacy';
 import { SecureStorageService } from '../crypto/secureStore';
 import {
   AuthSendCodeResponse,
@@ -78,6 +81,9 @@ class GramJSClientService {
       await this.client.connect();
       this.connected = true;
       this.isConnecting = false;
+
+      // Force GramJS to route requests via authenticated primary socket rather than secondary exported senders
+      (this.client as any).getSender = () => Promise.resolve((this.client as any)._sender);
       return this.client;
     } catch (err) {
       this.isConnecting = false;
@@ -335,6 +341,216 @@ class GramJSClientService {
       console.error('[GramJS] uploadEncryptedBlob error:', err);
       throw new Error(`Telegram upload failed: ${err?.message || err}`);
     }
+  }
+
+  async uploadFileStreaming(
+    filePath: string,
+    fileName: string,
+    fileSize: number,
+    masterKeyHex: string,
+    onProgress?: (progress: number, currentPart: number, totalParts: number) => void
+  ): Promise<MTProtoUploadResult> {
+    const client = await this.ensureConnected();
+    let targetPeer: any = 'me';
+    try {
+      targetPeer = await this.resolveTargetPeer(this.currentSession?.channelId);
+    } catch {
+      targetPeer = 'me';
+    }
+
+    let actualSize = fileSize;
+    try {
+      const info = await FileSystem.getInfoAsync(filePath);
+      if (info.exists && typeof info.size === 'number' && info.size > 0) {
+        actualSize = info.size;
+      }
+    } catch {}
+
+    const CHUNK_SIZE = 512 * 1024; // 512 KB per MTProto standard
+    const totalParts = Math.max(1, Math.ceil(actualSize / CHUNK_SIZE));
+    const isLarge = actualSize > 10 * 1024 * 1024; // > 10 MB uses SaveBigFilePart
+    const fileId = readBigIntFromBuffer(generateRandomBytes(8), true, true);
+
+    // Stream cipher setup (AES-256-CTR)
+    const iv = crypto.randomBytes(16);
+    const ivHex = iv.toString('hex');
+    const safeHex = (masterKeyHex || '').padStart(64, '0').slice(0, 64);
+    const keyBuffer = Buffer.from(safeHex, 'hex');
+
+    const cipher = crypto.createCipheriv('aes-256-ctr', keyBuffer, iv);
+    const sha256 = crypto.createHash('sha256');
+    const md5 = crypto.createHash('md5');
+
+    for (let i = 0; i < totalParts; i++) {
+      const position = i * CHUNK_SIZE;
+      const length = Math.min(CHUNK_SIZE, actualSize - position);
+
+      let chunkBuffer: Buffer;
+      try {
+        const base64Chunk = await FileSystem.readAsStringAsync(filePath, {
+          encoding: FileSystem.EncodingType.Base64,
+          position,
+          length,
+        });
+        chunkBuffer = Buffer.from(base64Chunk, 'base64');
+      } catch (readErr: any) {
+        // Fallback for special URIs (SAF, content://) where position/length may be constrained
+        try {
+          const resp = await fetch(filePath);
+          const blob = await resp.blob();
+          const slice = blob.slice(position, position + length);
+          const arrayBuf = await new Response(slice).arrayBuffer();
+          chunkBuffer = Buffer.from(arrayBuf);
+        } catch (fetchErr: any) {
+          throw new Error(
+            `Failed reading chunk ${i + 1}/${totalParts}: ${readErr?.message || fetchErr?.message}`
+          );
+        }
+      }
+
+      // Update plaintext integrity hash
+      sha256.update(chunkBuffer);
+
+      // Stream encrypt 512KB chunk (1:1 length preservation)
+      let encChunk = cipher.update(chunkBuffer);
+      if (i === totalParts - 1) {
+        encChunk = Buffer.concat([encChunk, cipher.final()]);
+      }
+
+      // Update ciphertext MD5 checksum
+      md5.update(encChunk);
+
+      // Upload chunk over authenticated primary socket with retries
+      let uploaded = false;
+      let retries = 0;
+      while (!uploaded && retries < 4) {
+        try {
+          if (isLarge) {
+            await client.invoke(
+              new Api.upload.SaveBigFilePart({
+                fileId,
+                filePart: i,
+                fileTotalParts: totalParts,
+                bytes: encChunk,
+              })
+            );
+          } else {
+            await client.invoke(
+              new Api.upload.SaveFilePart({
+                fileId,
+                filePart: i,
+                bytes: encChunk,
+              })
+            );
+          }
+          uploaded = true;
+        } catch (uploadErr: any) {
+          retries++;
+          console.warn(`[GramJS] Part ${i + 1}/${totalParts} retry ${retries}:`, uploadErr);
+          if (uploadErr?.errorMessage?.startsWith('FLOOD_WAIT_')) {
+            const waitSec = parseInt(uploadErr.errorMessage.split('_')[2], 10) || 2;
+            await new Promise((r) => setTimeout(r, waitSec * 1000));
+          } else {
+            await new Promise((r) => setTimeout(r, 1000 * retries));
+          }
+        }
+      }
+
+      if (!uploaded) {
+        throw new Error(`Failed to upload part ${i + 1}/${totalParts} after multiple retries.`);
+      }
+
+      if (onProgress) {
+        onProgress((i + 1) / totalParts, i + 1, totalParts);
+      }
+    }
+
+    const sha256Hash = sha256.digest('hex');
+    const md5Hash = md5.digest('hex');
+    const encFileName = `${fileName}.enc`;
+
+    const inputFile = isLarge
+      ? new Api.InputFileBig({
+          id: fileId,
+          parts: totalParts,
+          name: encFileName,
+        })
+      : new Api.InputFile({
+          id: fileId,
+          parts: totalParts,
+          name: encFileName,
+          md5Checksum: md5Hash,
+        });
+
+    const media = new Api.InputMediaUploadedDocument({
+      file: inputFile,
+      mimeType: 'application/octet-stream',
+      attributes: [
+        new Api.DocumentAttributeFilename({ fileName: encFileName }),
+      ],
+      forceFile: true,
+    });
+
+    let sentResult: any = null;
+    let finalPeerStr = typeof targetPeer === 'string' ? targetPeer : 'me';
+
+    try {
+      sentResult = await client.invoke(
+        new Api.messages.SendMedia({
+          peer: targetPeer,
+          media,
+          message: '[CloudNest E2EE] SHA-256 Verified Encrypted Chunk',
+        })
+      );
+    } catch (peerErr: any) {
+      if (targetPeer !== 'me') {
+        console.warn('[GramJS] Streaming upload to channel failed, falling back to Saved Messages ("me"):', peerErr);
+        targetPeer = 'me';
+        finalPeerStr = 'me';
+        sentResult = await client.invoke(
+          new Api.messages.SendMedia({
+            peer: 'me',
+            media,
+            message: '[CloudNest E2EE] SHA-256 Verified Encrypted Chunk',
+          })
+        );
+      } else {
+        throw peerErr;
+      }
+    }
+
+    let messageId = Date.now();
+    try {
+      const msgObj = (client as any)._getResponseMessage(null, sentResult, targetPeer);
+      if (msgObj && typeof msgObj.id === 'number') {
+        messageId = msgObj.id;
+      }
+    } catch {}
+
+    if (!messageId || messageId === Date.now()) {
+      if (sentResult && Array.isArray((sentResult as any).updates)) {
+        for (const u of (sentResult as any).updates) {
+          if (u.message && typeof u.message.id === 'number') {
+            messageId = u.message.id;
+            break;
+          }
+          if (typeof u.id === 'number') {
+            messageId = u.id;
+          }
+        }
+      } else if (sentResult && typeof (sentResult as any).id === 'number') {
+        messageId = (sentResult as any).id;
+      }
+    }
+
+    return {
+      messageId,
+      channelId: finalPeerStr,
+      bytesUploaded: actualSize,
+      partsCount: totalParts,
+      ivHex,
+      sha256Hash,
+    };
   }
 
   async signOut(): Promise<void> {

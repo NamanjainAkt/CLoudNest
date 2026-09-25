@@ -34,4 +34,6 @@ export interface MTProtoUploadResult {
   channelId: string;
   bytesUploaded: number;
   partsCount: number;
+  ivHex?: string;
+  sha256Hash?: string;
 }

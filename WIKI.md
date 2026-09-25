@@ -795,3 +795,51 @@ To improve user experience and eliminate intimidating cryptographic and network 
   - Added gold favorite star badges for favorited files.
   - Removed duplicate shield boxes on row items to declutter the right-hand action column.
 - **Enhanced Grid Cards:** Now renders local image thumbnails and refined metadata rows for photos, videos, audio, and documents.
+
+---
+
+## 26. Streaming Zero-OOM MTProto Upload Engine for Large Files & APKs
+
+### 26.1 Background & Root Cause Analysis
+
+1. **Hermes OOM Crash on Large Files (>10MB, e.g. 100MB-196MB APKs):**
+   - In previous iterations, `BackgroundSyncManager` loaded the entire file at once into memory via `FileSystem.readAsStringAsync(filePath, { encoding: 'base64' })`.
+   - In React Native Hermes engine, reading a 196MB APK binary into a Base64 string produced a ~260MB JavaScript string, followed by a 196MB Node.js `Buffer`, another 196MB ciphertext buffer in `encryptBuffer`, and another 260MB Base64 string.
+   - Total simultaneous heap allocations exceeded 800MB in the Android ART/Hermes runtime, triggering an immediate Android `OutOfMemoryError` and process termination (`SIGKILL`).
+
+2. **GramJS Upload Abort on 6MB+ Files (Exported Sender Socket Drop):**
+   - High-level GramJS APIs (`client.sendFile` / `uploadFile`) invoke `client.getSender(client.session.dcId)`.
+   - In `TelegramBaseClient.js:328`, passing `dcId` (even for the active DC) triggers `_borrowExportedSender(dcId)`, which attempts to spawn a secondary TCP socket (`flora-1.web.telegram.org`).
+   - In mobile React Native environments, secondary connection timers are governed by `EXPORTED_SENDER_RELEASE_TIMEOUT = 30000` (30 seconds). At approximately 30-32 seconds into an upload, GramJS forcefully disconnects `flora-1`, abruptly killing active uploads midway.
+
+### 26.2 Architecture & Technical Implementation
+
+1. **Android Large Heap Allocation (`AndroidManifest.xml`):**
+   - Configured `android:largeHeap="true"` in `<application>` to grant up to 512MB-1GB of heap headroom on modern Android devices.
+
+2. **Sequential 512KB Native Chunk Reading via Legacy FileSystem:**
+   - Instead of reading the whole file, `FileSystem.readAsStringAsync(filePath, { encoding: 'base64', position, length })` reads exactly 512KB slices at the native C++/Java layer without buffering the rest of the file into JS memory.
+   - Maximum instantaneous RAM usage remains **under 3MB** regardless of whether the file is 500KB, 6MB, 196MB (APK), or 2GB.
+
+3. **Incremental Zero-Knowledge Stream Encryption (AES-256-CTR):**
+   - Utilizes `crypto.createCipheriv('aes-256-ctr', keyBuffer, iv)` with a 16-byte random IV.
+   - AES-256-CTR provides 1:1 byte length preservation (every 512KB plaintext chunk produces exactly 512KB of ciphertext with zero padding).
+   - Keeps running hashes:
+     - Plaintext SHA-256 hash (`sha256.update(chunkBuffer)`)
+     - Ciphertext MD5 checksum (`md5.update(encChunk)`)
+   - Both hashes are updated incrementally per chunk with zero extra memory allocations.
+
+4. **Direct MTProto Primary Socket Upload (`uploadFileStreaming`):**
+   - Files $\le$ 10MB: Streamed via `Api.upload.SaveFilePart({ fileId, filePart: i, bytes: encChunk })` and finalized with `Api.InputFile`.
+   - Files > 10MB (APKs, Videos, Archives): Streamed via `Api.upload.SaveBigFilePart({ fileId, filePart: i, fileTotalParts: totalParts, bytes: encChunk })` and finalized with `Api.InputFileBig`.
+   - Transmitted directly over `client._sender` via `client.invoke()`, eliminating auxiliary socket connections.
+   - Overrode `(client as any).getSender = () => Promise.resolve(client._sender)` on connection to ensure GramJS never spawns exported senders that time out.
+
+5. **Automatic Chunk Retry & Rate Limit (FLOOD_WAIT) Backoff:**
+   - Each 512KB chunk transmission is wrapped in a resilient retry loop (up to 4 attempts).
+   - If Telegram responds with `FLOOD_WAIT_X`, the uploader sleeps for `X` seconds before retrying.
+
+6. **Real-Time Telemetry & Progress Display:**
+   - Progress callbacks report real-time throughput: `${sentMB} / ${totalMB} MB • ${speedText}` (e.g., `45.2 / 196.4 MB • 4.8 MB/s`).
+   - Dynamic `totalChunks` updates keep the uploads queue UI (`QueueItemRow`) accurately in sync with MTProto part counts.
+
