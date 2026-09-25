@@ -44,14 +44,14 @@ export const StorageMeterCard: React.FC<StorageMeterCardProps> = ({ stats, onMan
       {/* Top Header Row */}
       <View style={styles.topRow}>
         <View style={styles.iconTitleRow}>
-          <Cloud size={18} color={colors.primary} />
+          <Cloud size={17} color={colors.primary} />
           <Text
             style={[
               typography.labelSm,
-              { color: colors.onSurfaceVariant, marginLeft: 6, letterSpacing: 1.2 },
+              { color: colors.onSurface, marginLeft: 6, fontWeight: '600', letterSpacing: 0.5 },
             ]}
           >
-            STORAGE USED
+            Cloud Storage
           </Text>
         </View>
 
@@ -61,30 +61,30 @@ export const StorageMeterCard: React.FC<StorageMeterCardProps> = ({ stats, onMan
             { backgroundColor: colors.surfaceContainerHighest },
           ]}
         >
-          <Lock size={12} color={colors.primary} />
+          <Lock size={11} color={colors.primary} />
           <Text
             style={[
               typography.monoSm,
-              { color: colors.primary, marginLeft: 4, fontSize: 10 },
+              { color: colors.primary, marginLeft: 4, fontSize: 10, fontWeight: '500' },
             ]}
           >
-            Zero-Knowledge Active
+            Protected
           </Text>
         </View>
       </View>
 
       {/* Hero Numbers */}
       <View style={styles.heroNumbersRow}>
-        <Text style={[typography.display, { color: colors.onSurface, fontSize: 32 }]}>
+        <Text style={[typography.display, { color: colors.onSurface, fontSize: 28, fontWeight: '700' }]}>
           {formatBytes(totalUsed)}
         </Text>
         <Text
           style={[
             typography.bodyMd,
-            { color: colors.onSurfaceVariant, marginLeft: 8, marginBottom: 4 },
+            { color: colors.onSurfaceVariant, marginLeft: 8, marginBottom: 2, fontSize: 13 },
           ]}
         >
-          {isZero ? 'used of Unlimited Telegram Cloud' : 'of unlimited Telegram Cloud'}
+          {isZero ? 'used of unlimited Cloud Storage' : 'of unlimited Cloud Storage'}
         </Text>
       </View>
 
@@ -93,29 +93,29 @@ export const StorageMeterCard: React.FC<StorageMeterCardProps> = ({ stats, onMan
         mediaPercent={mediaPercent}
         docsPercent={docsPercent}
         archivesPercent={archivesPercent}
-        style={{ marginVertical: spacing.spaceSm }}
+        style={{ marginVertical: 6 }}
       />
 
       {/* Legend Breakdown */}
       <View style={styles.legendRow}>
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: colors.primary }]} />
-          <Text style={[typography.monoSm, { color: colors.onSurfaceVariant }]}>
-            Media {formatBytes(stats.mediaBytes || 0)}
+          <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 11 }]}>
+            Photos {formatBytes(stats.mediaBytes || 0)}
           </Text>
         </View>
 
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: colors.secondaryContainer }]} />
-          <Text style={[typography.monoSm, { color: colors.onSurfaceVariant }]}>
-            Docs {formatBytes(stats.docsBytes || 0)}
+          <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 11 }]}>
+            Documents {formatBytes(stats.docsBytes || 0)}
           </Text>
         </View>
 
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: colors.tertiary }]} />
-          <Text style={[typography.monoSm, { color: colors.onSurfaceVariant }]}>
-            Archives {formatBytes(stats.archivesBytes || 0)}
+          <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 11 }]}>
+            Other Files {formatBytes(stats.archivesBytes || 0)}
           </Text>
         </View>
       </View>
@@ -127,8 +127,8 @@ export const StorageMeterCard: React.FC<StorageMeterCardProps> = ({ stats, onMan
           activeOpacity={0.7}
           style={styles.manageButton}
         >
-          <Text style={[typography.labelMd, { color: colors.primary }]}>Manage Storage</Text>
-          <ArrowRight size={14} color={colors.primary} style={{ marginLeft: 4 }} />
+          <Text style={[typography.labelMd, { color: colors.primary, fontSize: 13 }]}>Manage Storage</Text>
+          <ArrowRight size={13} color={colors.primary} style={{ marginLeft: 4 }} />
         </TouchableOpacity>
       )}
     </View>
@@ -137,15 +137,15 @@ export const StorageMeterCard: React.FC<StorageMeterCardProps> = ({ stats, onMan
 
 const styles = StyleSheet.create({
   cardContainer: {
-    padding: 16,
+    padding: 14,
     borderWidth: 1,
-    marginVertical: 8,
+    marginVertical: 4,
   },
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   iconTitleRow: {
     flexDirection: 'row',
@@ -161,14 +161,14 @@ const styles = StyleSheet.create({
   heroNumbersRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginVertical: 4,
+    marginVertical: 2,
   },
   legendRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    marginTop: 6,
-    gap: 12,
+    marginTop: 4,
+    gap: 10,
   },
   legendItem: {
     flexDirection: 'row',
@@ -184,6 +184,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    marginTop: 10,
+    marginTop: 8,
   },
 });

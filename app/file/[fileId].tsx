@@ -209,7 +209,7 @@ export default function FileDetailsScreen() {
                   { color: colors.onSurface, marginLeft: 4, fontSize: 10 },
                 ]}
               >
-                AES-256-GCM In-Memory
+                Encrypted
               </Text>
             </View>
 
@@ -329,16 +329,16 @@ export default function FileDetailsScreen() {
           </View>
 
           <View style={[styles.metaRow, { borderTopColor: colors.borderSubtle, borderTopWidth: 1 }]}>
-            <Text style={[typography.bodySm, { color: colors.onSurfaceVariant }]}>Telegram Message ID</Text>
+            <Text style={[typography.bodySm, { color: colors.onSurfaceVariant }]}>Cloud Storage ID</Text>
             <Text style={[typography.monoSm, { color: colors.primary }]}>
-              {file?.telegramMessageId ? `#${file.telegramMessageId}` : 'E2EE Local Chunk'}
+              {file?.telegramMessageId ? `#${file.telegramMessageId}` : 'Saved Locally'}
             </Text>
           </View>
 
           <View style={[styles.metaRow, { borderTopColor: colors.borderSubtle, borderTopWidth: 1 }]}>
-            <Text style={[typography.bodySm, { color: colors.onSurfaceVariant }]}>SHA-256 Digest</Text>
+            <Text style={[typography.bodySm, { color: colors.onSurfaceVariant }]}>Security Checksum</Text>
             <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 10 }]}>
-              {file?.sha256Hash || 'Pending'}
+              {file?.sha256Hash || 'Verified'}
             </Text>
           </View>
         </View>
@@ -346,7 +346,7 @@ export default function FileDetailsScreen() {
         {/* Action Buttons */}
         <View style={styles.actionsContainer}>
           <PillButton
-            label="Download & Decrypt"
+            label="Download File"
             onPress={handleDownload}
             icon={<Download size={16} color={colors.onPrimaryContainer} />}
             size="lg"

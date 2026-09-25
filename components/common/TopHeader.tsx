@@ -3,10 +3,9 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ShieldCheck, ArrowLeft, User } from 'lucide-react-native';
+import { ShieldCheck, ArrowLeft } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { BrandMark } from './BrandMark';
-import { TelemetryBadge } from './TelemetryBadge';
 
 export interface TopHeaderProps {
   title?: string;
@@ -23,7 +22,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   showBack = false,
   onBackPress,
   rightAction,
-  showEnclaveBadge = true,
+  showEnclaveBadge = false,
 }) => {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -91,22 +90,11 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
           </View>
         </View>
 
-        <View style={styles.rightGroup}>
-          {showEnclaveBadge && (
-            <TelemetryBadge label="TG-ENCLAVE" showPulse={true} style={styles.badgeMargin} />
-          )}
-          {rightAction ? (
-            rightAction
-          ) : (
-            <TouchableOpacity
-              style={[styles.avatarCircle, { backgroundColor: colors.primaryContainer }]}
-              activeOpacity={0.8}
-              onPress={() => router.push('/(tabs)/settings')}
-            >
-              <User size={16} color={colors.onPrimaryContainer} />
-            </TouchableOpacity>
-          )}
-        </View>
+        {rightAction ? (
+          <View style={styles.rightGroup}>
+            {rightAction}
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -151,15 +139,5 @@ const styles = StyleSheet.create({
   rightGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  badgeMargin: {
-    marginRight: 8,
-  },
-  avatarCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

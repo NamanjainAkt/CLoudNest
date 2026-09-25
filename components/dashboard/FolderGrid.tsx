@@ -1,6 +1,6 @@
 // components/dashboard/FolderGrid.tsx
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Folder, Lock, ShieldCheck, Send, MoreVertical, Plus } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
@@ -14,29 +14,32 @@ export interface FolderGridProps {
 export const FolderGrid: React.FC<FolderGridProps> = ({ folders, onCreateFolderPress }) => {
   const { colors, typography, radii } = useTheme();
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 600;
+  const cardWidth = isTablet ? '31.3%' : '48.5%';
 
   const getFolderIcon = (name: string) => {
     const lower = name.toLowerCase();
     if (lower.includes('vault') || lower.includes('personal')) {
       return {
-        icon: <Lock size={18} color={colors.primary} />,
+        icon: <Lock size={16} color={colors.primary} />,
         bg: colors.primaryContainer + '25',
       };
     }
     if (lower.includes('legal') || lower.includes('tax')) {
       return {
-        icon: <ShieldCheck size={18} color={colors.tertiary} />,
+        icon: <ShieldCheck size={16} color={colors.tertiary} />,
         bg: colors.tertiaryContainer + '30',
       };
     }
     if (lower.includes('media') || lower.includes('saved')) {
       return {
-        icon: <Send size={18} color={colors.primary} />,
+        icon: <Send size={16} color={colors.primary} />,
         bg: colors.primaryContainer + '25',
       };
     }
     return {
-      icon: <Folder size={18} color={colors.secondary} />,
+      icon: <Folder size={16} color={colors.secondary} />,
       bg: colors.secondaryContainer + '25',
     };
   };
@@ -46,11 +49,11 @@ export const FolderGrid: React.FC<FolderGridProps> = ({ folders, onCreateFolderP
       {/* Header Row */}
       <View style={styles.headerRow}>
         <View style={styles.titleRow}>
-          <Text style={[typography.headlineSm, { color: colors.onSurface }]}>Folders</Text>
+          <Text style={[typography.headlineSm, { color: colors.onSurface, fontSize: 16 }]}>Folders</Text>
           <Text
             style={[
               typography.monoSm,
-              { color: colors.onSurfaceVariant, marginLeft: 6 },
+              { color: colors.onSurfaceVariant, marginLeft: 6, fontSize: 12 },
             ]}
           >
             ({folders.length})
@@ -65,12 +68,12 @@ export const FolderGrid: React.FC<FolderGridProps> = ({ folders, onCreateFolderP
             accessibilityRole="button"
             accessibilityLabel="Create Folder"
           >
-            <Plus size={20} color={colors.onSurfaceVariant} />
+            <Plus size={18} color={colors.onSurfaceVariant} />
           </TouchableOpacity>
         )}
       </View>
 
-      {/* 2-Column Bento Grid or Empty State */}
+      {/* Responsive Grid or Empty State */}
       {folders.length === 0 ? (
         <View
           style={[
@@ -82,22 +85,22 @@ export const FolderGrid: React.FC<FolderGridProps> = ({ folders, onCreateFolderP
             },
           ]}
         >
-          <Folder size={32} color={colors.outline} style={{ opacity: 0.6 }} />
+          <Folder size={28} color={colors.outline} style={{ opacity: 0.6 }} />
           <Text
             style={[
               typography.headlineSm,
-              { color: colors.onSurface, marginTop: 10, fontSize: 15 },
+              { color: colors.onSurface, marginTop: 6, fontSize: 14 },
             ]}
           >
-            No Folders Yet
+            No Folders Created
           </Text>
           <Text
             style={[
               typography.bodySm,
-              { color: colors.onSurfaceVariant, textAlign: 'center', marginTop: 4, maxWidth: 240 },
+              { color: colors.onSurfaceVariant, textAlign: 'center', marginTop: 2, fontSize: 12, maxWidth: 260 },
             ]}
           >
-            Create your first encrypted folder to organize your vault.
+            Create folders to organize your files and documents.
           </Text>
           {onCreateFolderPress && (
             <TouchableOpacity
@@ -108,8 +111,8 @@ export const FolderGrid: React.FC<FolderGridProps> = ({ folders, onCreateFolderP
               ]}
               activeOpacity={0.7}
             >
-              <Plus size={14} color={colors.primary} style={{ marginRight: 4 }} />
-              <Text style={[typography.labelSm, { color: colors.primary, fontWeight: '600' }]}>
+              <Plus size={13} color={colors.primary} style={{ marginRight: 4 }} />
+              <Text style={[typography.labelSm, { color: colors.primary, fontWeight: '600', fontSize: 12 }]}>
                 New Folder
               </Text>
             </TouchableOpacity>
@@ -137,6 +140,7 @@ export const FolderGrid: React.FC<FolderGridProps> = ({ folders, onCreateFolderP
                 style={[
                   styles.folderCard,
                   {
+                    width: cardWidth as any,
                     borderRadius: radii.default,
                     backgroundColor: colors.surfaceContainer,
                     borderColor: colors.borderSubtle,
@@ -145,12 +149,12 @@ export const FolderGrid: React.FC<FolderGridProps> = ({ folders, onCreateFolderP
               >
                 <View style={styles.cardHeader}>
                   <View style={[styles.iconCircle, { backgroundColor: bg }]}>{icon}</View>
-                  <MoreVertical size={16} color={colors.onSurfaceVariant} />
+                  <MoreVertical size={15} color={colors.onSurfaceVariant} />
                 </View>
 
                 <View style={styles.cardBody}>
                   <Text
-                    style={[typography.headlineSm, { color: colors.onSurface, fontSize: 16 }]}
+                    style={[typography.headlineSm, { color: colors.onSurface, fontSize: 14 }]}
                     numberOfLines={1}
                   >
                     {folder.name}
@@ -158,7 +162,7 @@ export const FolderGrid: React.FC<FolderGridProps> = ({ folders, onCreateFolderP
                   <Text
                     style={[
                       typography.monoSm,
-                      { color: colors.onSurfaceVariant, marginTop: 4 },
+                      { color: colors.onSurfaceVariant, marginTop: 2, fontSize: 11 },
                     ]}
                   >
                     {itemsCount} {itemsCount === 1 ? 'item' : 'items'} • {sizeStr}
@@ -175,20 +179,20 @@ export const FolderGrid: React.FC<FolderGridProps> = ({ folders, onCreateFolderP
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 12,
+    marginVertical: 6,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   createFolderBtn: {
-    padding: 6,
+    padding: 4,
   },
   gridContainer: {
     flexDirection: 'row',
@@ -196,11 +200,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   folderCard: {
-    width: '48%',
-    padding: 14,
+    padding: 12,
     borderWidth: 1,
-    marginBottom: 12,
-    minHeight: 110,
+    marginBottom: 10,
+    minHeight: 96,
     justifyContent: 'space-between',
   },
   cardHeader: {
@@ -209,18 +212,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   iconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cardBody: {
-    marginTop: 10,
+    marginTop: 6,
   },
   emptyFolderCard: {
     width: '100%',
-    padding: 24,
+    padding: 16,
     borderWidth: 1,
     borderStyle: 'dashed',
     alignItems: 'center',
@@ -230,9 +233,9 @@ const styles = StyleSheet.create({
   emptyActionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 999,
-    marginTop: 12,
+    marginTop: 8,
   },
 });

@@ -103,7 +103,7 @@ export default function UploadsScreen() {
               ]}
               numberOfLines={1}
             >
-              Enclave via AES-256-GCM chunks • Wi-Fi Priority
+              End-to-End Encrypted • Automatic Cloud Sync
             </Text>
           </View>
         </View>

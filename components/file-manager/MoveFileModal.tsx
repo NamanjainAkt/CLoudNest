@@ -85,7 +85,7 @@ export const MoveFileModal: React.FC<MoveFileModalProps> = ({
                         { color: colors.onSurfaceVariant, fontSize: 11, marginTop: 2 },
                       ]}
                     >
-                      Select Destination Directory
+                      Choose target folder
                     </Text>
                   </View>
                 </View>

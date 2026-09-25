@@ -579,5 +579,41 @@ When `FileDetailsScreen` (`app/file/[fileId].tsx`) mounted, `file` was initially
 2. **Conditional Rendering Guard:**
    - Guarded `<FullScreenPreviewModal>` invocation in `app/file/[fileId].tsx` with `{file && (<FullScreenPreviewModal ... />)}` to guarantee that the modal is only mounted when valid file metadata is available.
 
+---
+
+## 22. UI Simplification, Jargon Removal & Compact Responsive Home Layout
+
+### 22.1 Overview & Motivation
+To improve user experience and eliminate intimidating cryptographic and network engineering jargon, the user interface was overhauled with plain, reliable, and user-friendly language. In addition, the home screen was restructured into a compact, responsive dashboard that adapts across all Android device form factors (smartphones, foldables, and tablets).
+
+### 22.2 Changes Implemented
+
+1. **Top Header Clean-Up (`TopHeader.tsx`):**
+   - Removed the `TG-ENCLAVE` badge and redundant top-right user avatar (which was already accessible via the bottom navigation Settings tab).
+   - Now renders a clean brand mark and title, keeping the header distraction-free.
+
+2. **Home Screen Streamlining (`app/(tabs)/index.tsx`):**
+   - Removed the oversized "Good evening, [User]" greeting, ping latency readout ("42 ms ping"), and "PRIVATE STORAGE" badge.
+   - Padded the top of the scroll container compactly (`paddingTop: 6`), placing the Storage Meter directly in view without vertical crowding.
+   - Simplified category titles: "Photos & Videos", "Documents", "Files & Archives", and "Audio".
+
+3. **Compact & Responsive Storage Card (`StorageMeterCard.tsx`):**
+   - Replaced technical labels: `STORAGE USED` → `Cloud Storage`, `Zero-Knowledge Active` → `Protected`, `Media` → `Photos`, `Docs` → `Documents`, `Archives` → `Other Files`.
+   - Reduced card padding to 14px, legend gap to 10px, and font dimensions for a sleek, compact profile.
+
+4. **Adaptive Folder Grid (`FolderGrid.tsx`):**
+   - Replaced fixed percentage column widths with dynamic viewport calculations via `useWindowDimensions()`.
+   - On tablets and wide screens (width >= 600px), automatically arranges folders into 3 columns (`31.3%`); on standard mobile devices, maintains 2 columns (`48.5%`).
+   - Replaced jargon: "Create your first encrypted folder to organize your vault" → "Create folders to organize your files and documents".
+
+5. **Global Technical Jargon Replacement:**
+   - **File Manager (`FileListItem.tsx`):** Replaced `Telegram Chunk #ID` / `E2EE Local` with `Cloud Synced` / `Saved on Device`.
+   - **Upload Sheet (`UploadBottomSheet.tsx`):** Replaced `Add to CloudNest Vault` with `Upload & Add Files`, `Zero-Knowledge Ingest` with `Encrypted & Private`, `Snap & Encrypt` with `Take Photo`, `Virtual Directory` with `Organize files`.
+   - **Settings (`settings.tsx`):** Replaced `ENCLAVE SECURE` with `SECURE`, `TELEGRAM IDENTITY & ENCLAVE` with `TELEGRAM ACCOUNT`, `Connected via MTProto` with `Connected to Telegram Cloud`, `Hardware Session Enclave` with `Cloud Storage Connection`, `Sign Out of Enclave` with `Sign Out`.
+   - **Uploads Queue (`uploads.tsx`):** Replaced `Enclave via AES-256-GCM chunks • Wi-Fi Priority` with `End-to-End Encrypted • Automatic Cloud Sync`.
+   - **Search (`search.tsx`):** Replaced `Zero-Knowledge Index / Local in-memory RAM` with `Private Search • Encrypted & Fast`.
+   - **File Details (`[fileId].tsx`):** Replaced `AES-256-GCM In-Memory` with `Encrypted`, `Telegram Message ID` with `Cloud Storage ID`, `SHA-256 Digest` with `Security Checksum`, `Download & Decrypt` with `Download File`.
+   - **Biometrics (`BiometricLockOverlay.tsx`):** Replaced `ENCLAVE LOCKED` with `VAULT LOCKED`.
+
 
 

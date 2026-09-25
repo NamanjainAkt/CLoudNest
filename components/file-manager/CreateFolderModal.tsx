@@ -92,7 +92,7 @@ export const CreateFolderModal: React.FC<CreateFolderModalProps> = ({
                           { color: colors.onSurfaceVariant, fontSize: 11, marginTop: 2 },
                         ]}
                       >
-                        Zero-Knowledge Directory
+                        Organize your files
                       </Text>
                     </View>
                   </View>

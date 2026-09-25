@@ -144,8 +144,8 @@ export default function SettingsScreen() {
 
   const handleSignOut = () => {
     Alert.alert(
-      'Sign Out of Enclave',
-      'Are you sure you want to disconnect this device from your private Telegram storage channel?',
+      'Sign Out',
+      'Are you sure you want to sign out? Your files will remain safely stored in Telegram Cloud.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -189,7 +189,7 @@ export default function SettingsScreen() {
                 { backgroundColor: colors.surfaceContainerHigh },
               ]}
             >
-              <Text style={[typography.monoSm, { color: colors.onSurfaceVariant }]}>v2.4-e2ee</Text>
+              <Text style={[typography.monoSm, { color: colors.onSurfaceVariant }]}>v2.4</Text>
             </View>
           </View>
 
@@ -201,12 +201,12 @@ export default function SettingsScreen() {
           >
             <View style={[styles.enclavePulseDot, { backgroundColor: colors.secondary }]} />
             <Text style={[typography.monoSm, { color: colors.secondary, fontWeight: '600' }]}>
-              ENCLAVE SECURE
+              SECURE
             </Text>
           </View>
         </View>
 
-        {/* Section 1: Telegram Identity & Enclave */}
+        {/* Section 1: Telegram Identity */}
         <View style={styles.sectionContainer}>
           <Text
             style={[
@@ -214,7 +214,7 @@ export default function SettingsScreen() {
               { color: colors.onSurfaceVariant, marginBottom: 8, letterSpacing: 0.8 },
             ]}
           >
-            TELEGRAM IDENTITY & ENCLAVE
+            TELEGRAM ACCOUNT
           </Text>
 
           <View
@@ -254,7 +254,7 @@ export default function SettingsScreen() {
                   {session?.username || '@vault_user'}
                 </Text>
                 <Text style={[typography.monoSm, { color: colors.onSurfaceVariant }]}>
-                  {session?.phoneNumber || 'Encrypted Channel'}
+                  {session?.phoneNumber || 'Telegram Connected'}
                 </Text>
               </View>
             </View>
@@ -270,10 +270,10 @@ export default function SettingsScreen() {
                 <Radio size={15} color={colors.secondary} style={{ marginRight: 6 }} />
                 <Text style={[typography.bodySm, { color: colors.onSurface }]}>Connection Status</Text>
               </View>
-              <Text style={[typography.monoSm, { color: colors.secondary }]}>Connected via MTProto</Text>
+              <Text style={[typography.monoSm, { color: colors.secondary }]}>Connected to Telegram Cloud</Text>
             </View>
 
-            {/* Telegram Enclave Details */}
+            {/* Telegram Session Details */}
             <View
               style={[
                 styles.enclaveDetails,
@@ -282,7 +282,7 @@ export default function SettingsScreen() {
             >
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Text style={[typography.labelSm, { color: colors.onSurfaceVariant }]}>
-                  Hardware Session Enclave
+                  Cloud Storage Connection
                 </Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <View
@@ -290,7 +290,7 @@ export default function SettingsScreen() {
                       width: 6,
                       height: 6,
                       borderRadius: 3,
-                      backgroundColor: apiCreds.isLive ? colors.secondary : colors.primary,
+                      backgroundColor: colors.secondary,
                       marginRight: 6,
                     }}
                   />
@@ -298,13 +298,13 @@ export default function SettingsScreen() {
                     style={[
                       typography.monoSm,
                       {
-                        color: apiCreds.isLive ? colors.secondary : colors.onSurfaceVariant,
+                        color: colors.secondary,
                         fontWeight: '600',
                         fontSize: 11,
                       },
                     ]}
                   >
-                    {apiCreds.isLive ? 'LIVE NETWORK' : 'SIMULATED ENCLAVE'}
+                    ONLINE
                   </Text>
                 </View>
               </View>
@@ -312,11 +312,11 @@ export default function SettingsScreen() {
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Server size={12} color={colors.primary} style={{ marginRight: 4 }} />
                   <Text style={[typography.monoSm, { color: colors.primary }]}>
-                    {session?.nodeName || 'Frankfurt DC4'} • App #{apiCreds.apiId || '36408941'}
+                    Telegram Cloud • End-to-End Encrypted
                   </Text>
                 </View>
                 <Text style={[typography.monoSm, { color: colors.outline, fontSize: 10 }]}>
-                  {apiCreds.apiHash ? `Hash: ${apiCreds.apiHash.slice(0, 6)}…` : 'Hash: 902d6c…'}
+                  Active
                 </Text>
               </View>
             </View>
@@ -330,10 +330,10 @@ export default function SettingsScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <LogOut size={18} color={colors.error} style={{ marginRight: 8 }} />
                 <Text style={[typography.bodyMd, { color: colors.error, fontWeight: '600' }]}>
-                  Sign Out of Enclave
+                  Sign Out
                 </Text>
               </View>
-              <Text style={[typography.labelSm, { color: colors.outline }]}>Disconnect Session</Text>
+              <Text style={[typography.labelSm, { color: colors.outline }]}>Log out of account</Text>
             </TouchableOpacity>
           </View>
         </View>

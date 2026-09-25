@@ -95,7 +95,7 @@ export const RenameFileModal: React.FC<RenameFileModalProps> = ({
                           { color: colors.onSurfaceVariant, fontSize: 11, marginTop: 2 },
                         ]}
                       >
-                        Metadata update
+                        Enter new file name
                       </Text>
                     </View>
                   </View>

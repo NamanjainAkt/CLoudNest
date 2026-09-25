@@ -64,7 +64,7 @@ export const RecentFilesList: React.FC<RecentFilesListProps> = ({ files, onSeeAl
                   { color: colors.primary, fontSize: 10, marginLeft: 3 },
                 ]}
               >
-                E2EE
+                Secure
               </Text>
             </View>
           </View>
@@ -72,19 +72,19 @@ export const RecentFilesList: React.FC<RecentFilesListProps> = ({ files, onSeeAl
           {/* Bottom filename & metadata */}
           <View style={styles.cardBottom}>
             <Text
-              style={[typography.bodyLg, { color: colors.onSurface, fontWeight: '500' }]}
+              style={[typography.bodyMd, { color: colors.onSurface, fontWeight: '600', fontSize: 13 }]}
               numberOfLines={1}
             >
               {item.name}
             </Text>
             <View style={styles.metaRow}>
-              <Text style={[typography.monoSm, { color: colors.onSurfaceVariant }]}>
+              <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 11 }]}>
                 {sizeMB} MB
               </Text>
               <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, marginHorizontal: 4 }]}>
                 •
               </Text>
-              <Text style={[typography.monoSm, { color: colors.primary }]}>Synced</Text>
+              <Text style={[typography.monoSm, { color: colors.primary, fontSize: 11 }]}>Saved</Text>
             </View>
           </View>
         </TouchableOpacity>
@@ -96,14 +96,14 @@ export const RecentFilesList: React.FC<RecentFilesListProps> = ({ files, onSeeAl
   return (
     <View style={styles.container}>
       <View style={styles.sectionHeader}>
-        <Text style={[typography.headlineSm, { color: colors.onSurface }]}>Recent Files</Text>
+        <Text style={[typography.headlineSm, { color: colors.onSurface, fontSize: 16 }]}>Recent Files</Text>
         {files.length > 0 && onSeeAllPress && (
           <TouchableOpacity
             onPress={onSeeAllPress}
             style={styles.seeAllButton}
             activeOpacity={0.7}
           >
-            <Text style={[typography.labelMd, { color: colors.primary }]}>See all</Text>
+            <Text style={[typography.labelMd, { color: colors.primary, fontSize: 13 }]}>See all</Text>
             <ChevronRight size={14} color={colors.primary} />
           </TouchableOpacity>
         )}
@@ -120,22 +120,22 @@ export const RecentFilesList: React.FC<RecentFilesListProps> = ({ files, onSeeAl
             },
           ]}
         >
-          <File size={28} color={colors.outline} style={{ opacity: 0.6 }} />
+          <File size={24} color={colors.outline} style={{ opacity: 0.6 }} />
           <Text
             style={[
               typography.headlineSm,
-              { color: colors.onSurface, marginTop: 8, fontSize: 15 },
+              { color: colors.onSurface, marginTop: 6, fontSize: 14 },
             ]}
           >
-            No Files in Vault
+            No Recent Files
           </Text>
           <Text
             style={[
               typography.bodySm,
-              { color: colors.onSurfaceVariant, textAlign: 'center', marginTop: 3 },
+              { color: colors.onSurfaceVariant, textAlign: 'center', marginTop: 2, fontSize: 12 },
             ]}
           >
-            Tap the + button below to encrypt and upload your first file.
+            Tap the + button below to upload your first file.
           </Text>
         </View>
       ) : (
@@ -154,13 +154,13 @@ export const RecentFilesList: React.FC<RecentFilesListProps> = ({ files, onSeeAl
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 10,
+    marginVertical: 6,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   seeAllButton: {
     flexDirection: 'row',
@@ -170,11 +170,11 @@ const styles = StyleSheet.create({
     paddingRight: 16,
   },
   fileCard: {
-    width: 220,
-    height: 120,
-    padding: 14,
+    width: 190,
+    height: 108,
+    padding: 12,
     borderWidth: 1,
-    marginRight: 12,
+    marginRight: 10,
     justifyContent: 'space-between',
   },
   cardTopRow: {
@@ -183,21 +183,21 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   iconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   badgePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: 999,
   },
   cardBottom: {
-    marginTop: 8,
+    marginTop: 6,
   },
   metaRow: {
     flexDirection: 'row',
@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
   },
   emptyRecentsCard: {
     width: '100%',
-    padding: 24,
+    padding: 16,
     borderWidth: 1,
     borderStyle: 'dashed',
     alignItems: 'center',

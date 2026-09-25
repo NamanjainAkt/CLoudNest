@@ -48,7 +48,7 @@ export const FileListItem = memo<FileListItemProps>(({ file, onPress, onMorePres
 
   const { icon, bg } = getFileIcon(file.extension);
   const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
-  const chunkText = file.telegramMessageId ? `Telegram Chunk #${file.telegramMessageId}` : 'E2EE Local';
+  const chunkText = file.telegramMessageId ? 'Cloud Synced' : 'Saved on Device';
 
   return (
     <TouchableOpacity

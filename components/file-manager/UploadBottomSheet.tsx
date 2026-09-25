@@ -65,7 +65,7 @@ export const UploadBottomSheet: React.FC<UploadBottomSheetProps> = ({
               <View style={styles.sheetHeader}>
                 <View>
                   <Text style={[typography.headlineSm, { color: colors.onSurface }]}>
-                    Add to CloudNest Vault
+                    Upload & Add Files
                   </Text>
                   <Text
                     style={[
@@ -73,7 +73,7 @@ export const UploadBottomSheet: React.FC<UploadBottomSheetProps> = ({
                       { color: colors.onSurfaceVariant, marginTop: 2 },
                     ]}
                   >
-                    Zero-Knowledge Ingest
+                    Encrypted & Private
                   </Text>
                 </View>
 
@@ -213,7 +213,7 @@ export const UploadBottomSheet: React.FC<UploadBottomSheetProps> = ({
                       { color: colors.onSurfaceVariant, fontSize: 11, textAlign: 'center' },
                     ]}
                   >
-                    Snap & Encrypt
+                    Take Photo
                   </Text>
                 </TouchableOpacity>
 
@@ -255,12 +255,12 @@ export const UploadBottomSheet: React.FC<UploadBottomSheetProps> = ({
                       { color: colors.onSurfaceVariant, fontSize: 11, textAlign: 'center' },
                     ]}
                   >
-                    Virtual Directory
+                    Organize files
                   </Text>
                 </TouchableOpacity>
               </View>
 
-              {/* Zero Knowledge Security Strip */}
+              {/* Security Strip */}
               <View
                 style={[
                   styles.securityBanner,
@@ -274,7 +274,7 @@ export const UploadBottomSheet: React.FC<UploadBottomSheetProps> = ({
                     { color: colors.onSurfaceVariant, flex: 1, fontSize: 11 },
                   ]}
                 >
-                  Zero-Knowledge Active — All files encrypted with AES-256 before transmission.
+                  Private & Secure — Files are encrypted on your device before uploading.
                 </Text>
               </View>
             </View>

@@ -9,7 +9,7 @@ import {
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Shield, Plus, FileText, Image, FolderArchive, Music } from 'lucide-react-native';
+import { Plus, FileText, Image, FolderArchive, Music } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../theme/ThemeContext';
@@ -27,7 +27,6 @@ export default function HomeDashboardScreen() {
   const router = useRouter();
 
   const {
-    session,
     storageStats,
     recentFiles,
     folders,
@@ -43,8 +42,6 @@ export default function HomeDashboardScreen() {
     archives: 0,
     audio: 0,
   });
-
-  const accountName = session?.accountName || 'Vault User';
 
   React.useEffect(() => {
     FileDao.getCategoryCounts().then(setCategoryCounts).catch(() => {});
@@ -125,60 +122,22 @@ export default function HomeDashboardScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.surface }]}>
-      <TopHeader title="CloudNest" subtitle="Home" />
+      <TopHeader title="CloudNest" />
 
       <ScrollView
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 90 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Top Greeting & Telemetry */}
-        <View style={styles.greetingSection}>
-          <View style={styles.greetingHeader}>
-            <View>
-              <Text style={[typography.headlineLgMobile, { color: colors.onSurface }]}>
-                Good evening, {accountName}
-              </Text>
-              <View style={styles.syncStatusRow}>
-                <View style={styles.pulseWrapper}>
-                  <View style={[styles.pingCircle, { backgroundColor: colors.secondaryContainer }]} />
-                  <View style={[styles.pulseCore, { backgroundColor: colors.primary }]} />
-                </View>
-                <Text style={[typography.monoSm, { color: colors.onSurfaceVariant }]}>
-                  Vault synced via Telegram E2EE • {session?.lastPingMs || 42} ms ping
-                </Text>
-              </View>
-            </View>
-
-            <View
-              style={[
-                styles.privateStoragePill,
-                { backgroundColor: colors.surfaceContainerHigh },
-              ]}
-            >
-              <Shield size={13} color={colors.primary} />
-              <Text
-                style={[
-                  typography.labelSm,
-                  { color: colors.onSurface, marginLeft: 4, letterSpacing: 0.8 },
-                ]}
-              >
-                PRIVATE STORAGE
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Hero Storage Telemetry Card */}
+        {/* Compact Storage Card */}
         <StorageMeterCard
           stats={storageStats}
           onManagePress={() => router.push('/(tabs)/settings')}
         />
 
-        {/* Quick Access Categories Carousel */}
+        {/* Quick Access Categories */}
         <View style={styles.categoriesSection}>
           <View style={styles.categoriesHeader}>
-            <Text style={[typography.headlineSm, { color: colors.onSurface }]}>Categories</Text>
-            <Text style={[typography.monoSm, { color: colors.onSurfaceVariant }]}>4 Sources</Text>
+            <Text style={[typography.headlineSm, { color: colors.onSurface, fontSize: 16 }]}>Categories</Text>
           </View>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
@@ -187,8 +146,8 @@ export default function HomeDashboardScreen() {
               style={[styles.categoryPill, { backgroundColor: colors.surfaceContainerHigh }]}
               activeOpacity={0.8}
             >
-              <FileText size={16} color={colors.primary} />
-              <Text style={[typography.labelMd, { color: colors.onSurface, marginLeft: 6 }]}>Documents</Text>
+              <FileText size={15} color={colors.primary} />
+              <Text style={[typography.labelMd, { color: colors.onSurface, marginLeft: 6, fontSize: 12 }]}>Documents</Text>
               <View style={[styles.categoryCount, { backgroundColor: colors.surfaceContainerLowest }]}>
                 <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 10 }]}>{categoryCounts.documents}</Text>
               </View>
@@ -199,8 +158,8 @@ export default function HomeDashboardScreen() {
               style={[styles.categoryPill, { backgroundColor: colors.surfaceContainerHigh }]}
               activeOpacity={0.8}
             >
-              <Image size={16} color={colors.secondary} />
-              <Text style={[typography.labelMd, { color: colors.onSurface, marginLeft: 6 }]}>Media & Photos</Text>
+              <Image size={15} color={colors.secondary} />
+              <Text style={[typography.labelMd, { color: colors.onSurface, marginLeft: 6, fontSize: 12 }]}>Photos & Videos</Text>
               <View style={[styles.categoryCount, { backgroundColor: colors.surfaceContainerLowest }]}>
                 <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 10 }]}>{categoryCounts.media}</Text>
               </View>
@@ -211,8 +170,8 @@ export default function HomeDashboardScreen() {
               style={[styles.categoryPill, { backgroundColor: colors.surfaceContainerHigh }]}
               activeOpacity={0.8}
             >
-              <FolderArchive size={16} color={colors.tertiary} />
-              <Text style={[typography.labelMd, { color: colors.onSurface, marginLeft: 6 }]}>Code & Archives</Text>
+              <FolderArchive size={15} color={colors.tertiary} />
+              <Text style={[typography.labelMd, { color: colors.onSurface, marginLeft: 6, fontSize: 12 }]}>Files & Archives</Text>
               <View style={[styles.categoryCount, { backgroundColor: colors.surfaceContainerLowest }]}>
                 <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 10 }]}>{categoryCounts.archives}</Text>
               </View>
@@ -223,8 +182,8 @@ export default function HomeDashboardScreen() {
               style={[styles.categoryPill, { backgroundColor: colors.surfaceContainerHigh }]}
               activeOpacity={0.8}
             >
-              <Music size={16} color={colors.primary} />
-              <Text style={[typography.labelMd, { color: colors.onSurface, marginLeft: 6 }]}>Audio Notes</Text>
+              <Music size={15} color={colors.primary} />
+              <Text style={[typography.labelMd, { color: colors.onSurface, marginLeft: 6, fontSize: 12 }]}>Audio</Text>
               <View style={[styles.categoryCount, { backgroundColor: colors.surfaceContainerLowest }]}>
                 <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 10 }]}>{categoryCounts.audio}</Text>
               </View>
@@ -292,56 +251,16 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 16,
-    paddingTop: 12,
-  },
-  greetingSection: {
-    marginVertical: 8,
-  },
-  greetingHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  syncStatusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  pulseWrapper: {
-    width: 10,
-    height: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 6,
-    position: 'relative',
-  },
-  pingCircle: {
-    position: 'absolute',
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    opacity: 0.6,
-  },
-  pulseCore: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  privateStoragePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
+    paddingTop: 6,
   },
   categoriesSection: {
-    marginVertical: 10,
+    marginVertical: 6,
   },
   categoriesHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   chipsScroll: {
     flexDirection: 'row',
@@ -349,15 +268,15 @@ const styles = StyleSheet.create({
   categoryPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 999,
     marginRight: 8,
   },
   categoryCount: {
-    marginLeft: 8,
+    marginLeft: 6,
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: 1,
     borderRadius: 999,
   },
   fabContainer: {

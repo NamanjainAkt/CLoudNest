@@ -108,13 +108,13 @@ export default function SearchScreen() {
           <View style={styles.telemetryLeft}>
             <Shield size={12} color={colors.tertiary} style={{ marginRight: 5 }} />
             <Text style={[typography.monoSm, { color: colors.onSurfaceVariant }]}>
-              Zero-Knowledge Index
+              Private Search
             </Text>
           </View>
           <View style={styles.telemetryRight}>
-            <View style={[styles.ramDot, { backgroundColor: colors.primary }]} />
+            <View style={[styles.ramDot, { backgroundColor: colors.secondary }]} />
             <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 10 }]}>
-              Local in-memory RAM
+              Encrypted & Fast
             </Text>
           </View>
         </View>

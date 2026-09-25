@@ -150,7 +150,7 @@ export const BiometricLockOverlay: React.FC<BiometricLockOverlayProps> = ({
                 { color: colors.primary, marginLeft: 5, fontSize: 11, fontWeight: '600' },
               ]}
             >
-              ENCLAVE LOCKED
+              VAULT LOCKED
             </Text>
           </View>
         </View>
