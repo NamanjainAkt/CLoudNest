@@ -38,7 +38,16 @@ export const RecoveryPhraseModal: React.FC<RecoveryPhraseModalProps> = ({
       await Clipboard.setStringAsync(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
-      Alert.alert('Copied', '12-word recovery phrase copied to clipboard. Store it in a safe, private place.');
+
+      // Auto-clear clipboard after 60 seconds for security
+      setTimeout(() => {
+        Clipboard.setStringAsync('');
+      }, 60000);
+
+      Alert.alert(
+        'Copied',
+        '24-word recovery phrase copied to clipboard. Store it in a safe, private place. Clipboard will be automatically cleared in 60 seconds.'
+      );
     } catch {
       Alert.alert('Copy Failed', 'Could not copy to clipboard.');
     }
@@ -87,7 +96,7 @@ export const RecoveryPhraseModal: React.FC<RecoveryPhraseModalProps> = ({
                   { color: colors.onSurface, marginLeft: 8, fontWeight: '700' },
                 ]}
               >
-                Recovery Phrase (12 Words)
+                Recovery Phrase (24 Words)
               </Text>
             </View>
 
@@ -116,11 +125,11 @@ export const RecoveryPhraseModal: React.FC<RecoveryPhraseModalProps> = ({
                 { color: colors.onSurface, marginLeft: 8, flex: 1, lineHeight: 18 },
               ]}
             >
-              Keep these 12 words safe. You can use this phrase to recover your files if you switch devices.
+              Keep these 24 words safe. You can use this phrase to recover your files if you switch devices.
             </Text>
           </View>
 
-          {/* Words 3x4 Grid */}
+          {/* Words 4x6 Grid */}
           <View style={styles.wordsGrid}>
             {words.map((word, idx) => (
               <View
@@ -136,7 +145,7 @@ export const RecoveryPhraseModal: React.FC<RecoveryPhraseModalProps> = ({
                 <Text
                   style={[
                     typography.monoSm,
-                    { color: colors.outline, width: 20, fontSize: 11 },
+                    { color: colors.outline, width: 18, fontSize: 10 },
                   ]}
                 >
                   {idx + 1}.
@@ -144,8 +153,9 @@ export const RecoveryPhraseModal: React.FC<RecoveryPhraseModalProps> = ({
                 <Text
                   style={[
                     typography.monoSm,
-                    { color: colors.onSurface, fontWeight: '600', flex: 1 },
+                    { color: colors.onSurface, fontWeight: '600', flex: 1, fontSize: 12 },
                   ]}
+                  numberOfLines={1}
                 >
                   {word}
                 </Text>
@@ -172,7 +182,7 @@ export const RecoveryPhraseModal: React.FC<RecoveryPhraseModalProps> = ({
           {/* Actions */}
           <View style={styles.actionRow}>
             <PillButton
-              label={copied ? 'Phrase Copied' : 'Copy All 12 Words'}
+              label={copied ? 'Phrase Copied' : 'Copy All 24 Words'}
               onPress={handleCopy}
               icon={copied ? <Check size={16} color={colors.onPrimary} /> : <Copy size={16} color={colors.onPrimary} />}
               size="lg"
@@ -242,11 +252,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   wordCell: {
-    width: '31%',
+    width: '23%',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
   },

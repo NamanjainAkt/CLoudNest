@@ -18,7 +18,7 @@ import { KeyRound, X, Check, ShieldCheck, ArrowRight } from 'lucide-react-native
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../theme/ThemeContext';
 import { PillButton } from '../common/PillButton';
-import { mnemonicToSeedHex, isValidMnemonicWord } from '../../services/crypto/mnemonic';
+import { mnemonicToEntropy, isValidMnemonicWord, validateMnemonic } from '../../services/crypto/mnemonic';
 import { SecureStorageService } from '../../services/crypto/secureStore';
 import { useVaultStore } from '../../store/useVaultStore';
 import { MTProtoClient } from '../../services/telegram/mtprotoClient';
@@ -37,8 +37,8 @@ export const RestoreVaultModal: React.FC<RestoreVaultModalProps> = ({
   const router = useRouter();
   const setSession = useVaultStore((s) => s.setSession);
 
-  // 12 word inputs
-  const [words, setWords] = useState<string[]>(Array(12).fill(''));
+  // 24 word inputs for BIP39 standard
+  const [words, setWords] = useState<string[]>(Array(24).fill(''));
   const [loading, setLoading] = useState(false);
 
   const handleWordChange = (text: string, index: number) => {
@@ -46,7 +46,7 @@ export const RestoreVaultModal: React.FC<RestoreVaultModalProps> = ({
     // Check if user pasted full phrase with spaces
     if (trimmed.includes(' ')) {
       const parts = trimmed.split(/\s+/).filter(Boolean);
-      if (parts.length === 12) {
+      if (parts.length === 24) {
         setWords(parts);
         return;
       }
@@ -58,20 +58,29 @@ export const RestoreVaultModal: React.FC<RestoreVaultModalProps> = ({
   };
 
   const handleRestore = async () => {
-    // Validate all 12 words filled
+    // Validate all 24 words filled
     const filledWords = words.map((w) => w.trim().toLowerCase());
     if (filledWords.some((w) => !w)) {
-      Alert.alert('Incomplete Phrase', 'Please enter all 12 recovery words to restore your vault.');
+      Alert.alert('Incomplete Phrase', 'Please enter all 24 recovery words to restore your vault.');
+      return;
+    }
+
+    const validation = validateMnemonic(filledWords);
+    if (!validation.valid) {
+      Alert.alert(
+        'Invalid Recovery Phrase',
+        validation.error || 'Invalid recovery phrase. Please check your words and try again.'
+      );
       return;
     }
 
     setLoading(true);
     try {
-      // Re-derive master seed hex
-      const seedHex = mnemonicToSeedHex(filledWords);
+      // Re-derive 256-bit master seed hex with BIP39 checksum verification
+      const seedHex = mnemonicToEntropy(filledWords);
       await SecureStorageService.saveMasterKey(seedHex);
 
-      // Create session connected to Frankfurt DC4
+      // Create session connected to Telegram
       const session = await MTProtoClient.createPrivateVaultChannel({
         id: Date.now(),
         firstName: 'Restored',
@@ -90,7 +99,10 @@ export const RestoreVaultModal: React.FC<RestoreVaultModalProps> = ({
       ]);
     } catch (err: any) {
       setLoading(false);
-      Alert.alert('Restoration Failed', err?.message || 'Invalid recovery phrase format.');
+      Alert.alert(
+        'Restoration Failed',
+        'Invalid recovery phrase. Please check your words and try again.'
+      );
     }
   };
 
@@ -167,10 +179,10 @@ export const RestoreVaultModal: React.FC<RestoreVaultModalProps> = ({
                   { color: colors.onSurfaceVariant, marginBottom: 16, lineHeight: 18 },
                 ]}
               >
-                Enter your 12-word recovery phrase or paste the entire phrase into any field to decrypt your existing vault.
+                Enter your 24-word recovery phrase or paste the entire phrase into any field to decrypt your existing vault.
               </Text>
 
-              {/* 12 Word Inputs Grid */}
+              {/* 24 Word Inputs Grid */}
               <View style={styles.wordsGrid}>
                 {words.map((word, idx) => {
                   const isValid = word ? isValidMnemonicWord(word) : false;
@@ -192,7 +204,7 @@ export const RestoreVaultModal: React.FC<RestoreVaultModalProps> = ({
                       <Text
                         style={[
                           typography.monoSm,
-                          { color: colors.outline, width: 22, fontSize: 11 },
+                          { color: colors.outline, width: 18, fontSize: 10 },
                         ]}
                       >
                         {idx + 1}.
@@ -201,7 +213,7 @@ export const RestoreVaultModal: React.FC<RestoreVaultModalProps> = ({
                         style={[
                           styles.wordInput,
                           typography.monoSm,
-                          { color: colors.onSurface },
+                          { color: colors.onSurface, fontSize: 11 },
                         ]}
                         value={word}
                         onChangeText={(t) => handleWordChange(t, idx)}
@@ -211,7 +223,7 @@ export const RestoreVaultModal: React.FC<RestoreVaultModalProps> = ({
                         placeholderTextColor={colors.outline}
                       />
                       {isValid && (
-                        <Check size={12} color={colors.primary} style={{ marginRight: 4 }} />
+                        <Check size={10} color={colors.primary} style={{ marginRight: 2 }} />
                       )}
                     </View>
                   );
@@ -292,10 +304,10 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   wordInputWrapper: {
-    width: '31%',
+    width: '23.5%',
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 6,
+    paddingHorizontal: 4,
     height: 38,
     borderRadius: 8,
     borderWidth: 1,

@@ -66,9 +66,12 @@ export default function CreateVaultScreen() {
         setStep(4);
         setProgressPercent(100);
 
-        // Step 4: Complete and navigate
+        // Step 4: Complete and navigate to recovery phrase backup
         await new Promise((r) => setTimeout(r, 600));
-        router.replace('/(tabs)');
+        router.replace({
+          pathname: '/(auth)/backup-phrase',
+          params: { masterKey },
+        } as any);
       } catch (err: any) {
         console.error('Vault setup error:', err);
         Alert.alert(

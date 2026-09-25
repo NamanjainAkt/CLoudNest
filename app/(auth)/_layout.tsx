@@ -8,6 +8,7 @@ export default function AuthLayout() {
       <Stack.Screen name="sign-in" />
       <Stack.Screen name="otp-verify" />
       <Stack.Screen name="create-vault" />
+      <Stack.Screen name="backup-phrase" />
     </Stack>
   );
 }

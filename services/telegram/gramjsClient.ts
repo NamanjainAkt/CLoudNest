@@ -681,7 +681,7 @@ class GramJSClientService {
       }
     }
 
-    let messageId = Date.now();
+    let messageId = -1;
     try {
       const msgObj = (client as any)._getResponseMessage(null, sentResult, targetPeer);
       if (msgObj && typeof msgObj.id === 'number') {
@@ -689,7 +689,7 @@ class GramJSClientService {
       }
     } catch {}
 
-    if (!messageId || messageId === Date.now()) {
+    if (messageId <= 0) {
       if (sentResult && Array.isArray((sentResult as any).updates)) {
         for (const u of (sentResult as any).updates) {
           if (u.message && typeof u.message.id === 'number') {
@@ -703,6 +703,11 @@ class GramJSClientService {
       } else if (sentResult && typeof (sentResult as any).id === 'number') {
         messageId = (sentResult as any).id;
       }
+    }
+
+    // Final fallback — use timestamp so caller always has a non-zero ID
+    if (messageId <= 0) {
+      messageId = Date.now();
     }
 
     return {

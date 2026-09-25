@@ -2,7 +2,7 @@
 import * as Crypto from 'expo-crypto';
 
 /**
- * Derives a 256-bit AES key from master password/seed phrase using PBKDF2-HMAC-SHA512
+ * Generates 256 bits (32 bytes) of cryptographically secure random entropy for AES-256 master key
  */
 export async function generateMasterSeed(): Promise<string> {
   // Generate 32 bytes of cryptographically secure random entropy

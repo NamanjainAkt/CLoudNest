@@ -30,7 +30,8 @@ import { useTheme } from '../../theme/ThemeContext';
 import { TopHeader } from '../../components/common/TopHeader';
 import { useVaultStore } from '../../store/useVaultStore';
 import { BiometricService } from '../../services/crypto/biometrics';
-import { seedHexToMnemonic } from '../../services/crypto/mnemonic';
+import { entropyToMnemonic } from '../../services/crypto/mnemonic';
+import { generateMasterSeed } from '../../services/crypto/keyDerivation';
 import { SecureStorageService } from '../../services/crypto/secureStore';
 import { CacheManager } from '../../services/storage/cacheManager';
 import { RecoveryPhraseModal } from '../../components/settings/RecoveryPhraseModal';
@@ -95,17 +96,10 @@ export default function SettingsScreen() {
 
       let masterKey = await SecureStorageService.getMasterKey();
       if (!masterKey) {
-        // Generate cryptographic 256-bit random master key if none exists yet
-        const bytes = new Uint8Array(32);
-        if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-          crypto.getRandomValues(bytes);
-        } else {
-          for (let i = 0; i < 32; i++) bytes[i] = Math.floor(Math.random() * 256);
-        }
-        masterKey = Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+        masterKey = await generateMasterSeed();
         await SecureStorageService.saveMasterKey(masterKey);
       }
-      const words = seedHexToMnemonic(masterKey);
+      const words = entropyToMnemonic(masterKey);
       setRecoveryWords(words);
       setKeyFingerprint(`0x${masterKey.slice(0, 4)}…${masterKey.slice(-4)}`.toUpperCase());
     }
@@ -528,7 +522,7 @@ export default function SettingsScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Key size={18} color={colors.tertiary} style={{ marginRight: 10 }} />
                 <View>
-                  <Text style={[typography.bodyMd, { color: colors.onSurface }]}>Backup Recovery Phrase (12 Words)</Text>
+                  <Text style={[typography.bodyMd, { color: colors.onSurface }]}>Backup Recovery Phrase (24 Words)</Text>
                   <Text style={[typography.bodySm, { color: colors.onSurfaceVariant, fontSize: 12 }]}>View recovery key to backup your files</Text>
                 </View>
               </View>
@@ -590,7 +584,7 @@ export default function SettingsScreen() {
         </View>
       </ScrollView>
 
-      {/* 12-Word Recovery Phrase Modal */}
+      {/* 24-Word Recovery Phrase Modal */}
       <RecoveryPhraseModal
         visible={recoveryModalVisible}
         onClose={() => setRecoveryModalVisible(false)}
