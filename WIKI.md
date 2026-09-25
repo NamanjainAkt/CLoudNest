@@ -615,5 +615,32 @@ To improve user experience and eliminate intimidating cryptographic and network 
    - **File Details (`[fileId].tsx`):** Replaced `AES-256-GCM In-Memory` with `Encrypted`, `Telegram Message ID` with `Cloud Storage ID`, `SHA-256 Digest` with `Security Checksum`, `Download & Decrypt` with `Download File`.
    - **Biometrics (`BiometricLockOverlay.tsx`):** Replaced `ENCLAVE LOCKED` with `VAULT LOCKED`.
 
+---
 
+## 23. Complete Search Engine Overhaul (Category Filters, History, Sorting & File Actions)
 
+### 23.1 Root Causes of Previous Search Failures
+1. **Category Navigation Deadlock:** Navigating to Search by tapping any Category on the Home screen ("Documents", "Photos & Videos", "Audio", "Archives") resulted in an empty screen. The search handler (`executeSearch`) had an early return `if (!query.trim()) return;`, failing to query files when a category filter was selected without typing a keyword.
+2. **Missing Audio Category in Database:** `FileDao.searchFiles()` did not contain an SQL branch for `category === 'audio'`.
+3. **Dead Filter / Tune Button:** The top search bar's tune button (`SlidersHorizontal`) was a static visual element lacking an `onPress` callback.
+4. **Mocked / Non-Persistent Recent Searches:** `recentSearches` were stored only in ephemeral component state, never populated upon search submission, and never persisted across app launches.
+5. **Disabled Context Actions:** Search result items rendered the 3-dots more menu, but omitted `onMorePress`, preventing users from opening details, starring favorites, or deleting files from search.
+
+### 23.2 Resolutions Implemented
+1. **Flexible Database Search Query (`services/db/dbClient.ts`):**
+   - Refactored `FileDao.searchFiles()` to treat `query` as optional, allowing users to browse all files within any category even with an empty search box.
+   - Added support for all categories: `documents`, `images`/`media`, `archives`, and `audio`.
+   - Added `options` parameter supporting multi-criteria sorting (`date_desc`, `date_asc`, `name_asc`, `name_desc`, `size_desc`, `size_asc`) and `favoritesOnly` filtering.
+2. **Persistent Search History (`services/crypto/secureStore.ts`):**
+   - Added `getRecentSearches()` and `saveRecentSearches()` leveraging `SecureStore`.
+   - Keyboard `returnKeyType="search"` and `onSubmitEditing` now record and deduplicate search terms.
+   - Users can tap past queries to rerun searches, remove single terms, or tap "Clear All".
+3. **Interactive Sort & Filter Modal (`app/(tabs)/search.tsx`):**
+   - Connected the tune button to open an interactive Sort & Filter modal.
+   - Added quick toggles for **Favorites Only** and 6 sorting modes (Date, Name, Size).
+   - Displayed an active badge indicator on the tune icon whenever custom filters are active, along with a one-tap "Reset" action.
+4. **Interactive File Actions Modal (`onMorePress`):**
+   - Wired up `onMorePress` on search result rows to display a bottom modal with:
+     - **Open File Details** (`/file/[fileId]`)
+     - **Toggle Favorite** (instantly updates SQLite and refreshes results)
+     - **Move to Trash** (with confirmation dialog and automatic list refresh)

@@ -72,4 +72,19 @@ export const SecureStorageService = {
   async deleteItem(key: string): Promise<void> {
     await SecureStore.deleteItemAsync(key);
   },
+
+  async getRecentSearches(): Promise<string[]> {
+    try {
+      const raw = await SecureStore.getItemAsync('cloudnest_recent_searches');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  async saveRecentSearches(searches: string[]): Promise<void> {
+    try {
+      await SecureStore.setItemAsync('cloudnest_recent_searches', JSON.stringify(searches.slice(0, 10)));
+    } catch {}
+  },
 };

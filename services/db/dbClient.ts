@@ -81,24 +81,56 @@ export const FileDao = {
     return row ? mapDbFile(row) : null;
   },
 
-  async searchFiles(query: string, category?: string): Promise<FileRecord[]> {
+  async searchFiles(
+    query?: string,
+    category?: string,
+    options?: {
+      sortBy?: 'date_desc' | 'date_asc' | 'name_asc' | 'name_desc' | 'size_desc' | 'size_asc';
+      favoritesOnly?: boolean;
+    }
+  ): Promise<FileRecord[]> {
     const db = await getDb();
-    let sql = `SELECT * FROM files WHERE is_deleted = 0 AND name LIKE ?`;
-    const params: any[] = [`%${query}%`];
+    let sql = `SELECT * FROM files WHERE is_deleted = 0`;
+    const params: any[] = [];
+
+    const trimmed = (query || '').trim();
+    if (trimmed.length > 0) {
+      sql += ` AND name LIKE ?`;
+      params.push(`%${trimmed}%`);
+    }
 
     if (category && category !== 'all') {
       if (category === 'documents') {
-        sql += ` AND (extension IN ('pdf', 'doc', 'docx', 'txt', 'key', 'xlsx', 'asc'))`;
-      } else if (category === 'images') {
-        sql += ` AND (extension IN ('jpg', 'jpeg', 'png', 'webp', 'gif'))`;
+        sql += ` AND (extension IN ('pdf', 'doc', 'docx', 'txt', 'key', 'xlsx', 'asc', 'csv', 'md', 'json', 'log'))`;
+      } else if (category === 'images' || category === 'media') {
+        sql += ` AND (extension IN ('jpg', 'jpeg', 'png', 'webp', 'gif', 'mov', 'mp4', 'm4v', 'svg'))`;
       } else if (category === 'archives') {
-        sql += ` AND (extension IN ('zip', 'tar', 'gz', 'enc'))`;
-      } else if (category === 'media') {
-        sql += ` AND (extension IN ('mov', 'mp4', 'm4a', 'mp3'))`;
+        sql += ` AND (extension IN ('zip', 'tar', 'gz', 'enc', '7z', 'rar', 'bz2'))`;
+      } else if (category === 'audio') {
+        sql += ` AND (extension IN ('mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg'))`;
       }
     }
 
-    sql += ` ORDER BY updated_at DESC LIMIT 50`;
+    if (options?.favoritesOnly) {
+      sql += ` AND is_favorite = 1`;
+    }
+
+    const sortBy = options?.sortBy || 'date_desc';
+    if (sortBy === 'name_asc') {
+      sql += ` ORDER BY name ASC`;
+    } else if (sortBy === 'name_desc') {
+      sql += ` ORDER BY name DESC`;
+    } else if (sortBy === 'size_desc') {
+      sql += ` ORDER BY size DESC`;
+    } else if (sortBy === 'size_asc') {
+      sql += ` ORDER BY size ASC`;
+    } else if (sortBy === 'date_asc') {
+      sql += ` ORDER BY updated_at ASC`;
+    } else {
+      sql += ` ORDER BY updated_at DESC`;
+    }
+
+    sql += ` LIMIT 60`;
     const rows = await db.getAllAsync<any>(sql, params);
     return rows.map(mapDbFile);
   },
