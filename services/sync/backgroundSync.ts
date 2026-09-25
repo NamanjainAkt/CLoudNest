@@ -6,7 +6,8 @@ import { SecureStorageService } from '../crypto/secureStore';
 import { UploadQueueItem } from '../types/models';
 
 class BackgroundSyncManager {
-  private isProcessing = false;
+  private activeUploadIds = new Set<string>();
+  private MAX_PARALLEL_UPLOADS = 2;
   private syncInterval: any = null;
 
   /**
@@ -31,20 +32,42 @@ class BackgroundSyncManager {
   }
 
   /**
-   * Process the next item in the upload queue
+   * Process pending items in upload queue concurrently up to MAX_PARALLEL_UPLOADS
    */
   async processNextPendingUpload(): Promise<boolean> {
-    if (this.isProcessing) return false;
+    if (this.activeUploadIds.size >= this.MAX_PARALLEL_UPLOADS) {
+      return false;
+    }
 
     const store = useVaultStore.getState();
     const queue = store.uploadQueue;
     const nextItem = queue.find(
-      (item) => item.status === 'uploading' || item.status === 'pending'
+      (item) =>
+        (item.status === 'uploading' || item.status === 'pending') &&
+        !this.activeUploadIds.has(item.id)
     );
 
     if (!nextItem) return false;
 
-    this.isProcessing = true;
+    this.activeUploadIds.add(nextItem.id);
+
+    // Launch upload asynchronously so parallel slots can run concurrently
+    this.executeUpload(nextItem).finally(() => {
+      this.activeUploadIds.delete(nextItem.id);
+      // When upload finishes or fails or aborts, immediately check for the next pending item
+      this.processNextPendingUpload();
+    });
+
+    // If there is still capacity, trigger another slot immediately
+    if (this.activeUploadIds.size < this.MAX_PARALLEL_UPLOADS) {
+      this.processNextPendingUpload();
+    }
+
+    return true;
+  }
+
+  private async executeUpload(nextItem: UploadQueueItem): Promise<void> {
+    const store = useVaultStore.getState();
 
     try {
       const masterKey = await SecureStorageService.getMasterKey();
@@ -68,14 +91,13 @@ class BackgroundSyncManager {
       } catch {}
 
       const totalParts = Math.max(1, Math.ceil(actualSize / (512 * 1024)));
-      const startTime = Date.now();
 
       // 2. Stream chunked encryption & upload directly to Telegram MTProto
       store.updateQueueItemProgress(
         nextItem.id,
         0.05,
         1,
-        `0.0 / ${(actualSize / (1024 * 1024)).toFixed(1)} MB`,
+        '0 MB/s',
         totalParts
       );
 
@@ -84,25 +106,26 @@ class BackgroundSyncManager {
         nextItem.fileName,
         actualSize,
         masterKey,
-        (progress, currentPart, total) => {
-          const sentBytes = Math.min(actualSize, currentPart * (512 * 1024));
-          const sentMB = (sentBytes / (1024 * 1024)).toFixed(1);
-          const totalMB = (actualSize / (1024 * 1024)).toFixed(1);
-          const elapsedSec = (Date.now() - startTime) / 1000;
-          const speedText =
-            elapsedSec > 0
-              ? `${(sentBytes / (1024 * 1024) / elapsedSec).toFixed(1)} MB/s`
-              : '...';
-
+        (progress, currentPart, total, speedText) => {
           store.updateQueueItemProgress(
             nextItem.id,
             progress,
             currentPart,
-            `${sentMB} / ${totalMB} MB • ${speedText}`,
+            speedText || '0 MB/s',
             total
           );
+        },
+        () => {
+          const item = useVaultStore.getState().uploadQueue.find((i) => i.id === nextItem.id);
+          return !item || item.status === 'paused';
         }
       );
+
+      // Verify item wasn't paused or cancelled before final DB commit
+      const finalItem = useVaultStore.getState().uploadQueue.find((i) => i.id === nextItem.id);
+      if (!finalItem || finalItem.status === 'paused') {
+        return;
+      }
 
       // 3. Mark Complete in local SQLite Virtual File System
       const ext = nextItem.fileName.split('.').pop() || 'bin';
@@ -124,22 +147,32 @@ class BackgroundSyncManager {
         isFavorite: false,
         isDeleted: false,
       });
-
-      this.isProcessing = false;
-
-      // Process any subsequent pending items in queue
-      setTimeout(() => this.processNextPendingUpload(), 500);
-      return true;
     } catch (err: any) {
+      const currentItem = useVaultStore.getState().uploadQueue.find((i) => i.id === nextItem.id);
+      if (!currentItem) {
+        // Item was cancelled/removed from queue
+        return;
+      }
+
+      if (currentItem.status === 'paused' || err?.message === 'UPLOAD_ABORTED') {
+        // When an item is aborted because it was paused, do NOT mark it as failed. Keep it in paused state.
+        if (currentItem.status !== 'paused') {
+          store.pauseQueueItem(nextItem.id);
+        }
+        return;
+      }
+
       console.warn(`[BackgroundSync] Upload failed for ${nextItem.fileName}:`, err);
       store.markQueueItemFailed(nextItem.id, err?.message || 'Sync failed');
-      this.isProcessing = false;
-      return false;
     }
   }
 
   isBusy(): boolean {
-    return this.isProcessing;
+    return this.activeUploadIds.size > 0;
+  }
+
+  getActiveCount(): number {
+    return this.activeUploadIds.size;
   }
 }
 

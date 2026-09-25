@@ -4,6 +4,7 @@ import { FileRecord, FolderRecord, UploadQueueItem, StorageBreakdown, TelegramSe
 import { FileDao, FolderDao, getDb } from '../services/db/dbClient';
 import { MTProtoClient } from '../services/telegram/mtprotoClient';
 import { SecureStorageService } from '../services/crypto/secureStore';
+import { BackgroundSync } from '../services/sync/backgroundSync';
 
 interface VaultState {
   isInitialized: boolean;
@@ -31,6 +32,7 @@ interface VaultState {
   renameFile: (fileId: string, newName: string) => Promise<void>;
   moveFile: (fileId: string, targetFolderId: string | null) => Promise<void>;
   addUploadQueueItem: (item: Omit<UploadQueueItem, 'id' | 'status' | 'progress' | 'currentChunk' | 'speed' | 'retryCount' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  addUploadQueueItems: (items: Omit<UploadQueueItem, 'id' | 'status' | 'progress' | 'currentChunk' | 'speed' | 'retryCount' | 'createdAt' | 'updatedAt'>[]) => Promise<void>;
   updateQueueItemProgress: (id: string, progress: number, currentChunk: number, speed: string, totalChunks?: number) => void;
   markQueueItemComplete: (id: string, newFile: Omit<FileRecord, 'createdAt' | 'updatedAt'>) => Promise<void>;
   markQueueItemFailed: (id: string, error: string) => void;
@@ -157,16 +159,37 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   addUploadQueueItem: async (item) => {
     const newItem: UploadQueueItem = {
       ...item,
-      id: `queue_${Date.now()}`,
+      id: `queue_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       status: 'uploading',
       progress: 0.05,
       currentChunk: 1,
-      speed: '4.2 MB/s',
+      speed: '0 MB/s',
       retryCount: 0,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
     set((state) => ({ uploadQueue: [newItem, ...state.uploadQueue] }));
+    setTimeout(() => {
+      BackgroundSync.processNextPendingUpload();
+    }, 0);
+  },
+
+  addUploadQueueItems: async (items) => {
+    const newItems: UploadQueueItem[] = items.map((item, index) => ({
+      ...item,
+      id: `queue_${Date.now()}_${Math.random().toString(36).slice(2, 7)}_${index}`,
+      status: 'uploading',
+      progress: 0.05,
+      currentChunk: 1,
+      speed: '0 MB/s',
+      retryCount: 0,
+      createdAt: Date.now() + index,
+      updatedAt: Date.now() + index,
+    }));
+    set((state) => ({ uploadQueue: [...newItems, ...state.uploadQueue] }));
+    setTimeout(() => {
+      BackgroundSync.processNextPendingUpload();
+    }, 0);
   },
 
   updateQueueItemProgress: (id, progress, currentChunk, speed, totalChunks) => {
@@ -225,9 +248,12 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   resumeQueueItem: (id) => {
     set((state) => ({
       uploadQueue: state.uploadQueue.map((item) =>
-        item.id === id ? { ...item, status: 'uploading', speed: '4.2 MB/s' } : item
+        item.id === id ? { ...item, status: 'uploading', speed: '0 MB/s' } : item
       ),
     }));
+    setTimeout(() => {
+      BackgroundSync.processNextPendingUpload();
+    }, 0);
   },
 
   pauseAllUploads: () => {

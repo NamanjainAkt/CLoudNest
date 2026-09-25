@@ -14,15 +14,21 @@ Category taxonomies diverge between `getCategoryCounts`, `searchFiles`, `getStor
 
 Limit 1 GB (`cloudnest_max_cache_bytes` in SecureStore); evicts `ORDER BY updated_at ASC`, non-favorites first; `deleteAsync` idempotent + NULLs `local_cache_path`. Recency = `updated_at` (mutation, not access — no atime bump); size from DB, not FS stat.
 
-## Upload pipeline (`backgroundSync.ts` + `useVaultStore`)
+## Upload pipeline (`backgroundSync.ts` + `useVaultStore` + `gramjsClient.ts`)
 
-`setInterval(3000)` picks first `pending/uploading` item → requires master key + session → `uploadFileStreaming` (512 KB, CTR) with MB/s progress → `markQueueItemComplete` inserts `FileRecord` (`telegramMessageId`, CTR `ivHex`, SHA-256, `localCachePath`) → chains in 500 ms. Failures stay failed (no backoff, restart from part 0); single-flight; pause works only because `paused ∉ {pending,uploading}`.
+`BackgroundSyncManager` runs parallel uploads up to `MAX_PARALLEL_UPLOADS = 2` concurrent files:
+- **MTProto Multi-Worker Part Pipelining (3 concurrent chunk workers per file)**: `uploadFileStreaming` pipelines up to 3 `Api.upload.SaveBigFilePart` / `SaveFilePart` concurrent requests over the primary socket, saturating network bandwidth and eliminating RTT latency.
+- **Crypto & Hash Integrity**: Reads and encrypts via AES-256-CTR and hashes via SHA-256 and MD5 strictly sequentially in a bounded sliding window (buffer bound = 1 chunk, max in flight = 3 chunks, total memory < 2MB).
+- **Instantaneous Rolling Speed Engine**: Samples delta bytes / delta time every 500ms with exponential smoothing (`smoothed = 0.7 * smoothed + 0.3 * inst`), providing accurate real-time speeds (e.g. `4.8 MB/s`) on cards and dynamically aggregated in `UploadsScreen` header.
+- **Cancellation & Graceful Pause**: Abort handler checks store status and immediately terminates worker pipeline without socket or memory leaks, preserving paused state without false failures.
+- **Multi-File Batch Selection**: Supports multi-select in document and photo pickers, batch enqueuing via `addUploadQueueItems` with collision-proof IDs (`queue_${timestamp}_${rand}`).
 
 ## Zustand store (`useVaultStore.ts`)
 
-State: `isInitialized`, `session`, `storageStats`, `recentFiles[15]`, `folders`, `trashFiles`, ephemeral `uploadQueue`, `currentFolderId`. Every mutation re-runs full `loadVaultData()` (no optimistic updates); queue seed speed hardcoded `'4.2 MB/s'`; `encrypting` status never emitted; `signOut` clears sessions/master key but not cached file/folder state.
+State: `isInitialized`, `session`, `storageStats`, `recentFiles[15]`, `folders`, `trashFiles`, ephemeral `uploadQueue`, `currentFolderId`. Every mutation re-runs full `loadVaultData()` (no optimistic updates); queue item speed initializes to `'0 MB/s'` (removed fake hardcoded `'4.2 MB/s'`); `addUploadQueueItems` supports multi-file batch enqueuing; `signOut` clears sessions/master key but not cached file/folder state.
 
 ## Gaps
 
-- P0: queue ephemeral; no background daemon; no resume; CTR/GCM metadata divergence (see `crypto-security.md`).
+- P0: queue ephemeral; no native OS background daemon (`expo-task-manager`); no resume from arbitrary chunk index; CTR/GCM metadata divergence (see `crypto-security.md`).
 - P1: N+1 folder stats; dead `upload_queue`/`app_settings` tables; taxonomy divergence; full-reload mutations.
+

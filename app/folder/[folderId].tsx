@@ -60,6 +60,7 @@ export default function FolderBrowserScreen() {
   const params = useLocalSearchParams<{ folderId: string }>();
 
   const addUploadQueueItem = useVaultStore((s) => s.addUploadQueueItem);
+  const addUploadQueueItems = useVaultStore((s) => s.addUploadQueueItems);
   const createFolder = useVaultStore((s) => s.createFolder);
   const toggleFavorite = useVaultStore((s) => s.toggleFavorite);
   const moveToTrash = useVaultStore((s) => s.moveToTrash);
@@ -127,17 +128,18 @@ export default function FolderBrowserScreen() {
     try {
       const res = await DocumentPicker.getDocumentAsync({
         copyToCacheDirectory: true,
+        multiple: true,
       });
       if (!res.canceled && res.assets && res.assets.length > 0) {
-        const file = res.assets[0];
-        await addUploadQueueItem({
+        const queueItems = res.assets.map((file) => ({
           filePath: file.uri,
           fileName: file.name,
           fileSize: file.size || 1024 * 1024 * 2,
           mimeType: file.mimeType || 'application/octet-stream',
           targetFolderId: folderId,
           totalChunks: Math.max(1, Math.ceil((file.size || 1024 * 1024 * 2) / (512 * 1024))),
-        });
+        }));
+        await addUploadQueueItems(queueItems);
         setSheetVisible(false);
         router.push('/(tabs)/uploads');
       }
@@ -151,18 +153,22 @@ export default function FolderBrowserScreen() {
       const res = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.All,
         quality: 1,
+        allowsMultipleSelection: true,
       });
       if (!res.canceled && res.assets && res.assets.length > 0) {
-        const asset = res.assets[0];
-        const fileName = asset.fileName || `IMG_${Date.now()}.jpg`;
-        await addUploadQueueItem({
-          filePath: asset.uri,
-          fileName,
-          fileSize: asset.fileSize || 1024 * 1024 * 3,
-          mimeType: asset.mimeType || 'image/jpeg',
-          targetFolderId: folderId,
-          totalChunks: Math.max(1, Math.ceil((asset.fileSize || 1024 * 1024 * 3) / (512 * 1024))),
+        const queueItems = res.assets.map((asset, index) => {
+          const fileName = asset.fileName || `IMG_${Date.now()}_${index}.jpg`;
+          const fileSize = asset.fileSize || 1024 * 1024 * 3;
+          return {
+            filePath: asset.uri,
+            fileName,
+            fileSize,
+            mimeType: asset.mimeType || (asset.type === 'video' ? 'video/mp4' : 'image/jpeg'),
+            targetFolderId: folderId,
+            totalChunks: Math.max(1, Math.ceil(fileSize / (512 * 1024))),
+          };
         });
+        await addUploadQueueItems(queueItems);
         setSheetVisible(false);
         router.push('/(tabs)/uploads');
       }

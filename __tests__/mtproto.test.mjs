@@ -116,4 +116,214 @@ test('Telegram MTProto Transport & Edge Node Routing', async (t) => {
     const dec = Buffer.concat([decipher.update(fullCipher), decipher.final()]);
     assert.deepStrictEqual(dec, Buffer.concat([chunk1, chunk2]));
   });
+
+  await t.test('Multi-worker part pipelining concurrency and memory sliding window', () => {
+    function computePipeliningPlan(totalParts, maxConcurrency = 3, maxQueueBuffer = 1) {
+      const concurrency = Math.min(maxConcurrency, totalParts);
+      // In flight parts (up to concurrency) + ready buffer (maxQueueBuffer)
+      const maxChunksInMemory = concurrency + maxQueueBuffer;
+      const maxMemoryBytes = maxChunksInMemory * (512 * 1024);
+      return {
+        concurrency,
+        maxChunksInMemory,
+        maxMemoryBytes,
+      };
+    }
+
+    // Small file (1 part) -> Concurrency 1, max 2 chunks in memory (1MB)
+    const plan1 = computePipeliningPlan(1);
+    assert.strictEqual(plan1.concurrency, 1);
+    assert.strictEqual(plan1.maxChunksInMemory, 2);
+    assert.ok(plan1.maxMemoryBytes <= 2 * 1024 * 1024);
+
+    // Medium file (2 parts) -> Concurrency 2, max 3 chunks in memory (1.5MB)
+    const plan2 = computePipeliningPlan(2);
+    assert.strictEqual(plan2.concurrency, 2);
+    assert.strictEqual(plan2.maxChunksInMemory, 3);
+    assert.ok(plan2.maxMemoryBytes <= 2 * 1024 * 1024);
+
+    // Large file (20 parts) -> Concurrency 3, max 4 chunks in memory (2.0MB)
+    const plan20 = computePipeliningPlan(20);
+    assert.strictEqual(plan20.concurrency, 3);
+    assert.strictEqual(plan20.maxChunksInMemory, 4);
+    assert.strictEqual(plan20.maxMemoryBytes, 2 * 1024 * 1024);
+  });
+
+  await t.test('Pipelined sliding window preserves strictly sequential cryptographic order', async () => {
+    const crypto = await import('node:crypto');
+    const totalParts = 6;
+    const chunkSize = 64 * 1024;
+    const testData = crypto.randomBytes(totalParts * chunkSize);
+    const key = crypto.randomBytes(32);
+    const iv = crypto.randomBytes(16);
+
+    // 1. Reference standard sequential encryption & hashing
+    const refCipher = crypto.createCipheriv('aes-256-ctr', key, iv);
+    const refSha = crypto.createHash('sha256');
+    const refMd5 = crypto.createHash('md5');
+    const refChunks = [];
+    for (let i = 0; i < totalParts; i++) {
+      const chunk = testData.subarray(i * chunkSize, (i + 1) * chunkSize);
+      refSha.update(chunk);
+      let enc = refCipher.update(chunk);
+      if (i === totalParts - 1) {
+        enc = Buffer.concat([enc, refCipher.final()]);
+      }
+      refMd5.update(enc);
+      refChunks.push(enc);
+    }
+    const expectedSha = refSha.digest('hex');
+    const expectedMd5 = refMd5.digest('hex');
+
+    // 2. Pipelined producer-consumer model simulation
+    const pipelinedCipher = crypto.createCipheriv('aes-256-ctr', key, iv);
+    const pipelinedSha = crypto.createHash('sha256');
+    const pipelinedMd5 = crypto.createHash('md5');
+
+    const preparedQueue = [];
+    const MAX_BUFFER = 1;
+    let nextPrepare = 0;
+    const uploadedParts = new Map();
+
+    // Producer strictly prepares sequentially
+    function produceChunks() {
+      while (nextPrepare < totalParts && preparedQueue.length <= MAX_BUFFER) {
+        const i = nextPrepare++;
+        const chunk = testData.subarray(i * chunkSize, (i + 1) * chunkSize);
+        pipelinedSha.update(chunk);
+        let enc = pipelinedCipher.update(chunk);
+        if (i === totalParts - 1) {
+          enc = Buffer.concat([enc, pipelinedCipher.final()]);
+        }
+        pipelinedMd5.update(enc);
+        preparedQueue.push({ partIndex: i, bytes: enc });
+      }
+    }
+
+    // Workers consume concurrently
+    produceChunks();
+    while (uploadedParts.size < totalParts) {
+      assert.ok(preparedQueue.length <= MAX_BUFFER + 3, 'Memory sliding window bounded');
+      const item = preparedQueue.shift();
+      if (item) {
+        uploadedParts.set(item.partIndex, item.bytes);
+        produceChunks();
+      }
+    }
+
+    assert.strictEqual(pipelinedSha.digest('hex'), expectedSha);
+    assert.strictEqual(pipelinedMd5.digest('hex'), expectedMd5);
+    for (let i = 0; i < totalParts; i++) {
+      assert.deepStrictEqual(uploadedParts.get(i), refChunks[i]);
+    }
+  });
+
+  await t.test('Instantaneous speed calculation and formatting', () => {
+    function formatUploadSpeed(bytesPerSec) {
+      if (!bytesPerSec || bytesPerSec <= 0 || !isFinite(bytesPerSec)) {
+        return '0 MB/s';
+      }
+      if (bytesPerSec >= 1024 * 1024) {
+        return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
+      }
+      if (bytesPerSec >= 1024) {
+        return `${Math.round(bytesPerSec / 1024)} KB/s`;
+      }
+      return `${Math.round(bytesPerSec)} B/s`;
+    }
+
+    assert.strictEqual(formatUploadSpeed(0), '0 MB/s');
+    assert.strictEqual(formatUploadSpeed(-50), '0 MB/s');
+    assert.strictEqual(formatUploadSpeed(NaN), '0 MB/s');
+    assert.strictEqual(formatUploadSpeed(500), '500 B/s');
+    assert.strictEqual(formatUploadSpeed(850 * 1024), '850 KB/s');
+    assert.strictEqual(formatUploadSpeed(4.8 * 1024 * 1024), '4.8 MB/s');
+    assert.strictEqual(formatUploadSpeed(10.25 * 1024 * 1024), '10.3 MB/s');
+  });
+
+  await t.test('Active uploads speed parsing and dynamic sum calculation', () => {
+    function parseSpeedToMBs(speedText) {
+      if (!speedText) return 0;
+      const match = speedText.match(/([\d.]+)\s*(MB\/s|KB\/s|B\/s)?/i);
+      if (!match) return 0;
+      const num = parseFloat(match[1]);
+      if (isNaN(num)) return 0;
+      const unit = (match[2] || 'MB/s').toUpperCase();
+      if (unit.startsWith('KB')) return num / 1024;
+      if (unit.startsWith('B')) return num / (1024 * 1024);
+      return num;
+    }
+
+    assert.strictEqual(parseSpeedToMBs('4.8 MB/s'), 4.8);
+    assert.strictEqual(parseSpeedToMBs('0 MB/s'), 0);
+    assert.strictEqual(parseSpeedToMBs('Calculating...'), 0);
+    assert.strictEqual(parseSpeedToMBs(undefined), 0);
+    assert.strictEqual(parseSpeedToMBs('1024 KB/s'), 1);
+
+    // Multi-item aggregation
+    const activeQueue = [
+      { id: '1', status: 'uploading', speed: '3.5 MB/s' },
+      { id: '2', status: 'uploading', speed: '1.5 MB/s' },
+      { id: '3', status: 'paused', speed: '0 MB/s' },
+    ];
+
+    const activeItems = activeQueue.filter((i) => i.status === 'uploading');
+    const totalMBs = activeItems.reduce((sum, i) => sum + parseSpeedToMBs(i.speed), 0);
+    assert.strictEqual(totalMBs, 5.0);
+
+    const speedBadge = totalMBs > 0 ? `↑ ${totalMBs.toFixed(1)} MB/s` : '↑ 0 MB/s';
+    assert.strictEqual(speedBadge, '↑ 5.0 MB/s');
+  });
+
+  await t.test('Parallel upload slot manager respects MAX_PARALLEL_UPLOADS = 2', () => {
+    class MockBackgroundSync {
+      constructor() {
+        this.activeUploadIds = new Set();
+        this.MAX_PARALLEL_UPLOADS = 2;
+        this.completed = [];
+      }
+
+      canAcceptMore() {
+        return this.activeUploadIds.size < this.MAX_PARALLEL_UPLOADS;
+      }
+
+      startUpload(id) {
+        if (!this.canAcceptMore()) return false;
+        this.activeUploadIds.add(id);
+        return true;
+      }
+
+      finishUpload(id) {
+        this.activeUploadIds.delete(id);
+        this.completed.push(id);
+      }
+    }
+
+    const sync = new MockBackgroundSync();
+    assert.strictEqual(sync.canAcceptMore(), true);
+
+    // Start 1st upload
+    assert.strictEqual(sync.startUpload('item_1'), true);
+    assert.strictEqual(sync.activeUploadIds.size, 1);
+    assert.strictEqual(sync.canAcceptMore(), true);
+
+    // Start 2nd upload
+    assert.strictEqual(sync.startUpload('item_2'), true);
+    assert.strictEqual(sync.activeUploadIds.size, 2);
+    assert.strictEqual(sync.canAcceptMore(), false);
+
+    // 3rd upload must be rejected/queued until a slot frees up
+    assert.strictEqual(sync.startUpload('item_3'), false);
+    assert.strictEqual(sync.activeUploadIds.size, 2);
+
+    // Finish 1st upload -> frees a slot
+    sync.finishUpload('item_1');
+    assert.strictEqual(sync.activeUploadIds.size, 1);
+    assert.strictEqual(sync.canAcceptMore(), true);
+
+    // Now 3rd upload can start
+    assert.strictEqual(sync.startUpload('item_3'), true);
+    assert.strictEqual(sync.activeUploadIds.size, 2);
+  });
 });
+

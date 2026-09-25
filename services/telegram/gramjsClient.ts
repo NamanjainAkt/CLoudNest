@@ -16,6 +16,19 @@ import {
 } from './types';
 import { TelegramSession } from '../types/models';
 
+export function formatUploadSpeed(bytesPerSec: number): string {
+  if (!bytesPerSec || bytesPerSec <= 0 || !isFinite(bytesPerSec)) {
+    return '0 MB/s';
+  }
+  if (bytesPerSec >= 1024 * 1024) {
+    return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
+  }
+  if (bytesPerSec >= 1024) {
+    return `${Math.round(bytesPerSec / 1024)} KB/s`;
+  }
+  return `${Math.round(bytesPerSec)} B/s`;
+}
+
 class GramJSClientService {
   private client: TelegramClient | null = null;
   private stringSession: StringSession = new StringSession('');
@@ -348,7 +361,8 @@ class GramJSClientService {
     fileName: string,
     fileSize: number,
     masterKeyHex: string,
-    onProgress?: (progress: number, currentPart: number, totalParts: number) => void
+    onProgress?: (progress: number, currentPart: number, totalParts: number, speedText?: string) => void,
+    shouldAbort?: () => boolean
   ): Promise<MTProtoUploadResult> {
     const client = await this.ensureConnected();
     let targetPeer: any = 'me';
@@ -381,88 +395,236 @@ class GramJSClientService {
     const sha256 = crypto.createHash('sha256');
     const md5 = crypto.createHash('md5');
 
-    for (let i = 0; i < totalParts; i++) {
-      const position = i * CHUNK_SIZE;
-      const length = Math.min(CHUNK_SIZE, actualSize - position);
+    // Multi-worker part pipelining:
+    // Concurrency = 3 parallel parts over the MTProto socket.
+    // Sequential encryption & hashing sliding window kept < 2MB in memory (max 1 queued + 3 in flight).
+    const CONCURRENCY = Math.min(3, totalParts);
+    const MAX_QUEUE_BUFFER = 1;
 
-      let chunkBuffer: Buffer;
-      try {
-        const base64Chunk = await FileSystem.readAsStringAsync(filePath, {
-          encoding: FileSystem.EncodingType.Base64,
-          position,
+    interface PreparedChunk {
+      partIndex: number;
+      buffer: Buffer;
+      length: number;
+    }
+
+    const readyQueue: PreparedChunk[] = [];
+    let nextPartToPrepare = 0;
+    let completedPartsCount = 0;
+    let uploadedBytesCount = 0;
+    let aborted = false;
+    const consumerWaiters: (() => void)[] = [];
+    const producerWaiters: (() => void)[] = [];
+
+    const wakeConsumers = () => {
+      while (consumerWaiters.length > 0) {
+        const waiter = consumerWaiters.shift();
+        if (waiter) waiter();
+      }
+    };
+
+    const wakeProducers = () => {
+      while (producerWaiters.length > 0) {
+        const waiter = producerWaiters.shift();
+        if (waiter) waiter();
+      }
+    };
+
+    // Rolling window instantaneous speed calculation (sampling delta bytes / delta time every 500ms with exponential smoothing)
+    const startTime = Date.now();
+    let lastSampleTime = startTime;
+    let lastSampleBytes = 0;
+    let smoothedSpeed = 0;
+
+    const recordProgress = (bytesJustSent: number): string => {
+      uploadedBytesCount += bytesJustSent;
+      const now = Date.now();
+      const deltaMs = now - lastSampleTime;
+      if (deltaMs >= 500) {
+        const deltaBytes = uploadedBytesCount - lastSampleBytes;
+        const instSpeed = deltaBytes / (deltaMs / 1000);
+        smoothedSpeed = smoothedSpeed === 0 ? instSpeed : 0.7 * smoothedSpeed + 0.3 * instSpeed;
+        lastSampleTime = now;
+        lastSampleBytes = uploadedBytesCount;
+      } else if (smoothedSpeed === 0) {
+        const elapsed = (now - startTime) / 1000;
+        if (elapsed > 0.1) {
+          smoothedSpeed = uploadedBytesCount / elapsed;
+        }
+      }
+      return formatUploadSpeed(smoothedSpeed);
+    };
+
+    // Strictly sequential producer: maintains AES-256-CTR keystream counter, SHA-256 and MD5 integrity
+    const producerLoop = async () => {
+      while (nextPartToPrepare < totalParts) {
+        if (aborted || (shouldAbort && shouldAbort())) {
+          aborted = true;
+          wakeConsumers();
+          throw new Error('UPLOAD_ABORTED');
+        }
+
+        while (readyQueue.length >= MAX_QUEUE_BUFFER && !aborted) {
+          if (shouldAbort && shouldAbort()) {
+            aborted = true;
+            wakeConsumers();
+            throw new Error('UPLOAD_ABORTED');
+          }
+          await new Promise<void>((resolve) => {
+            producerWaiters.push(resolve);
+          });
+        }
+
+        if (aborted) throw new Error('UPLOAD_ABORTED');
+
+        const i = nextPartToPrepare++;
+        const position = i * CHUNK_SIZE;
+        const length = Math.min(CHUNK_SIZE, actualSize - position);
+
+        let chunkBuffer: Buffer;
+        try {
+          const base64Chunk = await FileSystem.readAsStringAsync(filePath, {
+            encoding: FileSystem.EncodingType.Base64,
+            position,
+            length,
+          });
+          chunkBuffer = Buffer.from(base64Chunk, 'base64');
+        } catch (readErr: any) {
+          try {
+            const resp = await fetch(filePath);
+            const blob = await resp.blob();
+            const slice = blob.slice(position, position + length);
+            const arrayBuf = await new Response(slice).arrayBuffer();
+            chunkBuffer = Buffer.from(arrayBuf);
+          } catch (fetchErr: any) {
+            throw new Error(
+              `Failed reading chunk ${i + 1}/${totalParts}: ${readErr?.message || fetchErr?.message}`
+            );
+          }
+        }
+
+        // Plaintext integrity hash (strictly sequential)
+        sha256.update(chunkBuffer);
+
+        // Stream encrypt 512KB chunk (1:1 length preservation, strictly sequential)
+        let encChunk = cipher.update(chunkBuffer);
+        if (i === totalParts - 1) {
+          encChunk = Buffer.concat([encChunk, cipher.final()]);
+        }
+
+        // Ciphertext MD5 checksum (strictly sequential)
+        md5.update(encChunk);
+
+        readyQueue.push({
+          partIndex: i,
+          buffer: encChunk,
           length,
         });
-        chunkBuffer = Buffer.from(base64Chunk, 'base64');
-      } catch (readErr: any) {
-        // Fallback for special URIs (SAF, content://) where position/length may be constrained
-        try {
-          const resp = await fetch(filePath);
-          const blob = await resp.blob();
-          const slice = blob.slice(position, position + length);
-          const arrayBuf = await new Response(slice).arrayBuffer();
-          chunkBuffer = Buffer.from(arrayBuf);
-        } catch (fetchErr: any) {
-          throw new Error(
-            `Failed reading chunk ${i + 1}/${totalParts}: ${readErr?.message || fetchErr?.message}`
-          );
+
+        wakeConsumers();
+      }
+    };
+
+    const getNextChunk = async (): Promise<PreparedChunk | null> => {
+      while (true) {
+        if (aborted || (shouldAbort && shouldAbort())) {
+          aborted = true;
+          wakeProducers();
+          throw new Error('UPLOAD_ABORTED');
+        }
+
+        if (readyQueue.length > 0) {
+          const chunk = readyQueue.shift()!;
+          wakeProducers();
+          return chunk;
+        }
+
+        if (nextPartToPrepare >= totalParts) {
+          return null;
+        }
+
+        await new Promise<void>((resolve) => {
+          consumerWaiters.push(resolve);
+        });
+      }
+    };
+
+    const uploadWorker = async (workerId: number) => {
+      while (!aborted) {
+        if (shouldAbort && shouldAbort()) {
+          aborted = true;
+          wakeConsumers();
+          wakeProducers();
+          throw new Error('UPLOAD_ABORTED');
+        }
+
+        const chunk = await getNextChunk();
+        if (!chunk) break;
+
+        const { partIndex: i, buffer: encChunk, length } = chunk;
+
+        let uploaded = false;
+        let retries = 0;
+        while (!uploaded && retries < 4 && !aborted) {
+          if (shouldAbort && shouldAbort()) {
+            aborted = true;
+            throw new Error('UPLOAD_ABORTED');
+          }
+
+          try {
+            if (isLarge) {
+              await client.invoke(
+                new Api.upload.SaveBigFilePart({
+                  fileId,
+                  filePart: i,
+                  fileTotalParts: totalParts,
+                  bytes: encChunk,
+                })
+              );
+            } else {
+              await client.invoke(
+                new Api.upload.SaveFilePart({
+                  fileId,
+                  filePart: i,
+                  bytes: encChunk,
+                })
+              );
+            }
+            uploaded = true;
+          } catch (uploadErr: any) {
+            retries++;
+            console.warn(`[GramJS] Part ${i + 1}/${totalParts} (worker ${workerId}) retry ${retries}:`, uploadErr);
+            if (uploadErr?.errorMessage?.startsWith('FLOOD_WAIT_')) {
+              const waitSec = parseInt(uploadErr.errorMessage.split('_')[2], 10) || 2;
+              await new Promise((r) => setTimeout(r, waitSec * 1000));
+            } else {
+              await new Promise((r) => setTimeout(r, 1000 * retries));
+            }
+          }
+        }
+
+        if (!uploaded) {
+          throw new Error(`Failed to upload part ${i + 1}/${totalParts} after multiple retries.`);
+        }
+
+        completedPartsCount++;
+        const currentSpeed = recordProgress(length);
+
+        if (onProgress) {
+          const progress = completedPartsCount / totalParts;
+          onProgress(progress, completedPartsCount, totalParts, currentSpeed);
         }
       }
+    };
 
-      // Update plaintext integrity hash
-      sha256.update(chunkBuffer);
-
-      // Stream encrypt 512KB chunk (1:1 length preservation)
-      let encChunk = cipher.update(chunkBuffer);
-      if (i === totalParts - 1) {
-        encChunk = Buffer.concat([encChunk, cipher.final()]);
-      }
-
-      // Update ciphertext MD5 checksum
-      md5.update(encChunk);
-
-      // Upload chunk over authenticated primary socket with retries
-      let uploaded = false;
-      let retries = 0;
-      while (!uploaded && retries < 4) {
-        try {
-          if (isLarge) {
-            await client.invoke(
-              new Api.upload.SaveBigFilePart({
-                fileId,
-                filePart: i,
-                fileTotalParts: totalParts,
-                bytes: encChunk,
-              })
-            );
-          } else {
-            await client.invoke(
-              new Api.upload.SaveFilePart({
-                fileId,
-                filePart: i,
-                bytes: encChunk,
-              })
-            );
-          }
-          uploaded = true;
-        } catch (uploadErr: any) {
-          retries++;
-          console.warn(`[GramJS] Part ${i + 1}/${totalParts} retry ${retries}:`, uploadErr);
-          if (uploadErr?.errorMessage?.startsWith('FLOOD_WAIT_')) {
-            const waitSec = parseInt(uploadErr.errorMessage.split('_')[2], 10) || 2;
-            await new Promise((r) => setTimeout(r, waitSec * 1000));
-          } else {
-            await new Promise((r) => setTimeout(r, 1000 * retries));
-          }
-        }
-      }
-
-      if (!uploaded) {
-        throw new Error(`Failed to upload part ${i + 1}/${totalParts} after multiple retries.`);
-      }
-
-      if (onProgress) {
-        onProgress((i + 1) / totalParts, i + 1, totalParts);
-      }
+    // Run pipelined upload: 1 sequential producer + up to 3 parallel socket upload workers
+    const workers = Array.from({ length: CONCURRENCY }, (_, idx) => uploadWorker(idx + 1));
+    try {
+      await Promise.all([producerLoop(), ...workers]);
+    } catch (err: any) {
+      aborted = true;
+      wakeConsumers();
+      wakeProducers();
+      throw err;
     }
 
     const sha256Hash = sha256.digest('hex');

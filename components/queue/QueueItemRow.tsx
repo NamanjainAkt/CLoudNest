@@ -177,7 +177,7 @@ export const QueueItemRow = memo<QueueItemRowProps>(({
             },
           ]}
         >
-          {item.status === 'uploading' ? item.speed : item.status.toUpperCase()}
+          {item.status === 'uploading' ? (item.speed || 'Calculating...') : item.status.toUpperCase()}
         </Text>
       </View>
     </View>

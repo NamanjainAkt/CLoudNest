@@ -15,6 +15,18 @@ import { QueueItemRow } from '../../components/queue/QueueItemRow';
 import { useVaultStore } from '../../store/useVaultStore';
 import { UploadStatus } from '../../services/types/models';
 
+export function parseSpeedToMBs(speedText?: string): number {
+  if (!speedText) return 0;
+  const match = speedText.match(/([\d.]+)\s*(MB\/s|KB\/s|B\/s)?/i);
+  if (!match) return 0;
+  const num = parseFloat(match[1]);
+  if (isNaN(num)) return 0;
+  const unit = (match[2] || 'MB/s').toUpperCase();
+  if (unit.startsWith('KB')) return num / 1024;
+  if (unit.startsWith('B')) return num / (1024 * 1024);
+  return num;
+}
+
 export default function UploadsScreen() {
   const { colors, typography, radii } = useTheme();
   const {
@@ -35,9 +47,22 @@ export default function UploadsScreen() {
     return true;
   });
 
-  const activeCount = uploadQueue.filter((i) => i.status === 'uploading').length;
+  const activeItems = uploadQueue.filter((i) => i.status === 'uploading');
+  const activeCount = activeItems.length;
   const completedCount = uploadQueue.filter((i) => i.status === 'completed').length;
   const failedCount = uploadQueue.filter((i) => i.status === 'failed').length;
+
+  const totalActiveSpeedMBs = activeItems.reduce(
+    (sum, item) => sum + parseSpeedToMBs(item.speed),
+    0
+  );
+
+  const speedBadgeText =
+    totalActiveSpeedMBs > 0
+      ? `↑ ${totalActiveSpeedMBs.toFixed(1)} MB/s`
+      : activeCount > 0
+      ? '↑ Calculating...'
+      : '↑ 0 MB/s';
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.surface }]}>
@@ -74,7 +99,7 @@ export default function UploadsScreen() {
                 ]}
               >
                 <Text style={[typography.monoSm, { color: colors.primary, fontWeight: '600' }]}>
-                  ↑ {activeCount > 0 ? 'Active' : '0 MB/s'}
+                  {speedBadgeText}
                 </Text>
               </View>
 
