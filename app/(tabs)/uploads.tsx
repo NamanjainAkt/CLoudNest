@@ -43,7 +43,7 @@ export default function UploadsScreen() {
     <View style={[styles.screen, { backgroundColor: colors.surface }]}>
       <TopHeader
         title="Uploads Queue"
-        subtitle={`${activeCount > 0 ? '4.2 MB/s • Encrypting' : 'Idle'}`}
+        subtitle={activeCount > 0 ? 'Uploading files...' : 'Idle'}
       />
 
       <View style={styles.contentContainer}>
@@ -74,7 +74,7 @@ export default function UploadsScreen() {
                 ]}
               >
                 <Text style={[typography.monoSm, { color: colors.primary, fontWeight: '600' }]}>
-                  ↑ {activeCount > 0 ? '8.4 MB/s' : '0 MB/s'}
+                  ↑ {activeCount > 0 ? 'Active' : '0 MB/s'}
                 </Text>
               </View>
 
@@ -103,7 +103,7 @@ export default function UploadsScreen() {
               ]}
               numberOfLines={1}
             >
-              End-to-End Encrypted • Automatic Cloud Sync
+              Private & Encrypted • Automatic Cloud Sync
             </Text>
           </View>
         </View>
@@ -159,7 +159,7 @@ export default function UploadsScreen() {
                   { color: colors.onSurfaceVariant, textAlign: 'center', marginTop: 4, maxWidth: 260 },
                 ]}
               >
-                New files added to your vault will be encrypted with AES-256 and queued here.
+                Files you upload to CloudNest will show their progress and status here.
               </Text>
             </View>
           }

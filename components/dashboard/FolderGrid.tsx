@@ -1,10 +1,10 @@
-// components/dashboard/FolderGrid.tsx
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, TouchableWithoutFeedback } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Folder, Lock, ShieldCheck, Send, MoreVertical, Plus } from 'lucide-react-native';
+import { Folder, Lock, ShieldCheck, Send, MoreVertical, Plus, Edit2, Trash2, FolderOpen, X } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { FolderRecord } from '../../services/types/models';
+import { useVaultStore } from '../../store/useVaultStore';
 
 export interface FolderGridProps {
   folders: FolderRecord[];
@@ -17,6 +17,13 @@ export const FolderGrid: React.FC<FolderGridProps> = ({ folders, onCreateFolderP
   const { width } = useWindowDimensions();
   const isTablet = width >= 600;
   const cardWidth = isTablet ? '31.3%' : '48.5%';
+  const renameFolder = useVaultStore((s) => s.renameFolder);
+  const deleteFolder = useVaultStore((s) => s.deleteFolder);
+
+  const [selectedFolder, setSelectedFolder] = useState<FolderRecord | null>(null);
+  const [actionModalVisible, setActionModalVisible] = useState(false);
+  const [renameModalVisible, setRenameModalVisible] = useState(false);
+  const [newName, setNewName] = useState('');
 
   const getFolderIcon = (name: string) => {
     const lower = name.toLowerCase();
@@ -149,7 +156,16 @@ export const FolderGrid: React.FC<FolderGridProps> = ({ folders, onCreateFolderP
               >
                 <View style={styles.cardHeader}>
                   <View style={[styles.iconCircle, { backgroundColor: bg }]}>{icon}</View>
-                  <MoreVertical size={15} color={colors.onSurfaceVariant} />
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSelectedFolder(folder);
+                      setActionModalVisible(true);
+                    }}
+                    style={styles.moreBtn}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <MoreVertical size={16} color={colors.onSurfaceVariant} />
+                  </TouchableOpacity>
                 </View>
 
                 <View style={styles.cardBody}>
@@ -173,6 +189,131 @@ export const FolderGrid: React.FC<FolderGridProps> = ({ folders, onCreateFolderP
           })}
         </View>
       )}
+
+      {/* Folder Action Sheet */}
+      {actionModalVisible && selectedFolder && (
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            { backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end', zIndex: 100 },
+          ]}
+        >
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setActionModalVisible(false)}
+          />
+          <View
+            style={{
+              backgroundColor: colors.surfaceContainerLow,
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              padding: 20,
+              paddingBottom: 36,
+              borderTopWidth: 1,
+              borderColor: colors.borderSubtle,
+            }}
+          >
+            <Text style={[typography.headlineSm, { color: colors.onSurface, marginBottom: 16 }]}>
+              {selectedFolder.name}
+            </Text>
+
+            <TouchableOpacity
+              onPress={() => {
+                setActionModalVisible(false);
+                router.push(`/folder/${selectedFolder.id}` as any);
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14 }}
+            >
+              <FolderOpen size={18} color={colors.primary} style={{ marginRight: 12 }} />
+              <Text style={[typography.bodyMd, { color: colors.onSurface }]}>Open Folder</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                setActionModalVisible(false);
+                setNewName(selectedFolder.name);
+                setRenameModalVisible(true);
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14 }}
+            >
+              <Edit2 size={18} color={colors.onSurface} style={{ marginRight: 12 }} />
+              <Text style={[typography.bodyMd, { color: colors.onSurface }]}>Rename Folder</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                setActionModalVisible(false);
+                Alert.alert(
+                  'Delete Folder',
+                  `Are you sure you want to move "${selectedFolder.name}" and all its files to trash?`,
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Move to Trash',
+                      style: 'destructive',
+                      onPress: async () => {
+                        await deleteFolder(selectedFolder.id);
+                      },
+                    },
+                  ]
+                );
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14 }}
+            >
+              <Trash2 size={18} color={colors.error} style={{ marginRight: 12 }} />
+              <Text style={[typography.bodyMd, { color: colors.error, fontWeight: '600' }]}>Delete Folder</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Rename Folder Modal */}
+      {renameModalVisible && selectedFolder && (
+        <Modal visible={renameModalVisible} transparent animationType="fade" onRequestClose={() => setRenameModalVisible(false)}>
+          <TouchableWithoutFeedback onPress={() => setRenameModalVisible(false)}>
+            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 24 }}>
+              <TouchableWithoutFeedback>
+                <View style={{ backgroundColor: colors.surfaceContainerLow, borderRadius: radii.lg, padding: 20, borderWidth: 1, borderColor: colors.borderSubtle }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <Text style={[typography.headlineSm, { color: colors.onSurface }]}>Rename Folder</Text>
+                    <TouchableOpacity onPress={() => setRenameModalVisible(false)}>
+                      <X size={18} color={colors.onSurfaceVariant} />
+                    </TouchableOpacity>
+                  </View>
+                  <TextInput
+                    style={[{ backgroundColor: colors.surfaceContainerLowest, borderColor: colors.borderSubtle, borderWidth: 1, borderRadius: radii.default, color: colors.onSurface, padding: 12, marginBottom: 16 }, typography.bodyMd]}
+                    value={newName}
+                    onChangeText={setNewName}
+                    autoFocus
+                    maxLength={40}
+                  />
+                  <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 10 }}>
+                    <TouchableOpacity
+                      onPress={() => setRenameModalVisible(false)}
+                      style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: radii.full, backgroundColor: colors.surfaceContainer }}
+                    >
+                      <Text style={[typography.labelMd, { color: colors.onSurfaceVariant }]}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={async () => {
+                        const trimmed = newName.trim();
+                        if (trimmed && trimmed !== selectedFolder.name) {
+                          await renameFolder(selectedFolder.id, trimmed);
+                        }
+                        setRenameModalVisible(false);
+                      }}
+                      style={{ paddingHorizontal: 16, paddingVertical: 10, borderRadius: radii.full, backgroundColor: colors.primary }}
+                    >
+                      <Text style={[typography.labelMd, { color: colors.onPrimary, fontWeight: '600' }]}>Save</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </Modal>
+      )}
     </View>
   );
 };
@@ -192,6 +333,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   createFolderBtn: {
+    padding: 4,
+  },
+  moreBtn: {
     padding: 4,
   },
   gridContainer: {

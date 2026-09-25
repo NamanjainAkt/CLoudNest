@@ -29,6 +29,7 @@ export default function TrashScreen() {
   const { trashFiles, restoreFromTrash, deletePermanently, emptyTrash } = useVaultStore();
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'name'>('newest');
 
   const formatBytes = (bytes: number) => {
     if (bytes <= 0) return '0 B';
@@ -42,12 +43,12 @@ export default function TrashScreen() {
 
   const handleEmptyTrash = () => {
     if (trashFiles.length === 0) {
-      Alert.alert('Trash Empty', 'There are no items in the trash to purge.');
+      Alert.alert('Trash Empty', 'There are no items in trash to delete.');
       return;
     }
     Alert.alert(
       'Empty Trash',
-      `All ${trashFiles.length} item(s) in the purge queue will be permanently deleted immediately. This cannot be undone.`,
+      `All ${trashFiles.length} item(s) will be permanently deleted immediately. This cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -55,6 +56,7 @@ export default function TrashScreen() {
           style: 'destructive',
           onPress: async () => {
             await emptyTrash();
+            setSelectedIds([]);
           },
         },
       ]
@@ -74,6 +76,45 @@ export default function TrashScreen() {
       setSelectedIds(trashFiles.map((f: FileRecord) => f.id));
     }
   };
+
+  const handleCycleSort = () => {
+    if (sortOrder === 'newest') setSortOrder('oldest');
+    else if (sortOrder === 'oldest') setSortOrder('name');
+    else setSortOrder('newest');
+  };
+
+  const handleRestoreSelected = async () => {
+    for (const id of selectedIds) {
+      await restoreFromTrash(id);
+    }
+    setSelectedIds([]);
+  };
+
+  const handleDeleteSelected = () => {
+    Alert.alert(
+      'Delete Permanently',
+      `Permanently delete ${selectedIds.length} item(s)? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Forever',
+          style: 'destructive',
+          onPress: async () => {
+            for (const id of selectedIds) {
+              await deletePermanently(id);
+            }
+            setSelectedIds([]);
+          },
+        },
+      ]
+    );
+  };
+
+  const sortedFiles = [...trashFiles].sort((a, b) => {
+    if (sortOrder === 'newest') return (b.deletedAt || 0) - (a.deletedAt || 0);
+    if (sortOrder === 'oldest') return (a.deletedAt || 0) - (b.deletedAt || 0);
+    return a.name.localeCompare(b.name);
+  });
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.surface }]}>
@@ -99,7 +140,7 @@ export default function TrashScreen() {
           style={[typography.headlineSm, { color: colors.onSurface, flex: 1, marginLeft: 8 }]}
           numberOfLines={1}
         >
-          CloudNest Trash
+          Trash
         </Text>
 
         <TouchableOpacity
@@ -117,7 +158,7 @@ export default function TrashScreen() {
       </View>
 
       <View style={styles.mainContainer}>
-        {/* Retention Window Policy Warning Banner */}
+        {/* 30-Day Auto Delete Warning Banner */}
         <View
           style={[
             styles.policyBanner,
@@ -132,7 +173,7 @@ export default function TrashScreen() {
             <AlertTriangle size={18} color={colors.tertiary} style={{ marginTop: 2 }} />
             <View style={{ marginLeft: 10, flex: 1 }}>
               <Text style={[typography.labelMd, { color: colors.onSurface, fontWeight: '600' }]}>
-                Retention Window Policy
+                30-Day Auto Delete
               </Text>
               <Text
                 style={[
@@ -140,13 +181,13 @@ export default function TrashScreen() {
                   { color: colors.onSurfaceVariant, marginTop: 2, lineHeight: 17 },
                 ]}
               >
-                Items are automatically and permanently purged after 30 days. Encryption keys for purged chunks cannot be recovered.
+                Files in trash are automatically deleted forever after 30 days.
               </Text>
             </View>
           </View>
         </View>
 
-        {/* Telemetry Bar & Storage Summary */}
+        {/* Storage Summary */}
         <View
           style={[
             styles.telemetryBar,
@@ -167,7 +208,7 @@ export default function TrashScreen() {
             </View>
             <View style={{ marginLeft: 10 }}>
               <Text style={[typography.labelMd, { color: colors.onSurface, fontWeight: '600' }]}>
-                {trashFiles.length} {trashFiles.length === 1 ? 'item' : 'items'} in purge queue
+                {trashFiles.length} {trashFiles.length === 1 ? 'item' : 'items'} in trash
               </Text>
               <Text style={[typography.monoSm, { color: colors.onSurfaceVariant }]}>
                 {formatBytes(totalTrashBytes)} occupied
@@ -183,7 +224,7 @@ export default function TrashScreen() {
           >
             <View style={[styles.amberDot, { backgroundColor: colors.tertiary }]} />
             <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 10 }]}>
-              Pending Purge
+              Auto-delete in 30 days
             </Text>
           </View>
         </View>
@@ -195,10 +236,11 @@ export default function TrashScreen() {
               styles.sortBtn,
               { backgroundColor: colors.surfaceContainer },
             ]}
+            onPress={handleCycleSort}
             activeOpacity={0.7}
           >
             <Text style={[typography.labelSm, { color: colors.onSurfaceVariant }]}>
-              Date Deleted (Newest)
+              {sortOrder === 'newest' ? 'Date Deleted (Newest)' : sortOrder === 'oldest' ? 'Date Deleted (Oldest)' : 'Name (A to Z)'}
             </Text>
           </TouchableOpacity>
 
@@ -213,9 +255,9 @@ export default function TrashScreen() {
 
         {/* Deleted Items List */}
         <FlatList
-          data={trashFiles}
+          data={sortedFiles}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingBottom: 100 }}
+          contentContainerStyle={{ paddingBottom: selectedIds.length > 0 ? 120 : 80 }}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
@@ -327,6 +369,48 @@ export default function TrashScreen() {
             );
           }}
         />
+
+        {/* Floating Bulk Actions Bar */}
+        {selectedIds.length > 0 && (
+          <View
+            style={[
+              styles.bulkActionBar,
+              {
+                backgroundColor: colors.surfaceContainerHighest,
+                borderColor: colors.borderSubtle,
+                borderRadius: radii.lg,
+              },
+            ]}
+          >
+            <Text style={[typography.labelSm, { color: colors.onSurface, fontWeight: '600' }]}>
+              {selectedIds.length} selected
+            </Text>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <TouchableOpacity
+                onPress={handleRestoreSelected}
+                style={[styles.bulkBtn, { backgroundColor: colors.primaryContainer }]}
+                activeOpacity={0.8}
+              >
+                <History size={13} color={colors.onPrimaryContainer} style={{ marginRight: 4 }} />
+                <Text style={[typography.labelSm, { color: colors.onPrimaryContainer, fontWeight: '600' }]}>
+                  Restore
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleDeleteSelected}
+                style={[styles.bulkBtn, { backgroundColor: colors.errorContainer }]}
+                activeOpacity={0.8}
+              >
+                <Trash2 size={13} color={colors.onErrorContainer} style={{ marginRight: 4 }} />
+                <Text style={[typography.labelSm, { color: colors.onErrorContainer, fontWeight: '600' }]}>
+                  Delete
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -335,6 +419,30 @@ export default function TrashScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
+  },
+  bulkActionBar: {
+    position: 'absolute',
+    bottom: 24,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  bulkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
   },
   headerRow: {
     flexDirection: 'row',

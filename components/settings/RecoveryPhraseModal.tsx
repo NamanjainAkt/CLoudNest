@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ShieldAlert, Copy, Check, X, KeyRound } from 'lucide-react-native';
+import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '../../theme/ThemeContext';
 import { PillButton } from '../common/PillButton';
 
@@ -31,12 +32,16 @@ export const RecoveryPhraseModal: React.FC<RecoveryPhraseModalProps> = ({
   const { colors, typography, radii } = useTheme();
   const [copied, setCopied] = useState(false);
 
-  const handleCopy = () => {
+  const handleCopy = async () => {
     const text = words.map((w, idx) => `${idx + 1}. ${w}`).join(' ');
-    // Clipboard copy
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
-    Alert.alert('Copied', '12-word recovery phrase copied to clipboard. Store it in a secure location.');
+    try {
+      await Clipboard.setStringAsync(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+      Alert.alert('Copied', '12-word recovery phrase copied to clipboard. Store it in a safe, private place.');
+    } catch {
+      Alert.alert('Copy Failed', 'Could not copy to clipboard.');
+    }
   };
 
   return (
@@ -82,7 +87,7 @@ export const RecoveryPhraseModal: React.FC<RecoveryPhraseModalProps> = ({
                   { color: colors.onSurface, marginLeft: 8, fontWeight: '700' },
                 ]}
               >
-                Vault Recovery Phrase
+                Recovery Phrase (12 Words)
               </Text>
             </View>
 
@@ -111,7 +116,7 @@ export const RecoveryPhraseModal: React.FC<RecoveryPhraseModalProps> = ({
                 { color: colors.onSurface, marginLeft: 8, flex: 1, lineHeight: 18 },
               ]}
             >
-              Keep these 12 words secret. Anyone with access to this phrase can decrypt and access your entire vault.
+              Keep these 12 words safe. You can use this phrase to recover your files if you switch devices.
             </Text>
           </View>
 
@@ -151,7 +156,7 @@ export const RecoveryPhraseModal: React.FC<RecoveryPhraseModalProps> = ({
           {keyFingerprint && (
             <View style={styles.fingerprintRow}>
               <Text style={[typography.bodySm, { color: colors.outline, fontSize: 11 }]}>
-                Master Fingerprint:
+                Security Key ID:
               </Text>
               <Text
                 style={[

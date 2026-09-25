@@ -347,6 +347,29 @@ export const FolderDao = {
     );
     return id;
   },
+
+  async renameFolder(folderId: string, newName: string): Promise<void> {
+    const db = await getDb();
+    await db.runAsync(
+      `UPDATE folders SET name = ?, updated_at = ? WHERE id = ?`,
+      [newName, Date.now(), folderId]
+    );
+  },
+
+  async deleteFolder(folderId: string): Promise<void> {
+    const db = await getDb();
+    const now = Date.now();
+    // Soft delete the folder
+    await db.runAsync(
+      `UPDATE folders SET is_deleted = 1, updated_at = ? WHERE id = ?`,
+      [now, folderId]
+    );
+    // Soft delete files in the folder
+    await db.runAsync(
+      `UPDATE files SET is_deleted = 1, deleted_at = ?, updated_at = ? WHERE folder_id = ?`,
+      [now, now, folderId]
+    );
+  },
 };
 
 function mapDbFile(row: any): FileRecord {

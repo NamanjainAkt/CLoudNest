@@ -127,7 +127,7 @@ export default function SignInScreen() {
                   { color: colors.onSurfaceVariant, fontWeight: '500' },
                 ]}
               >
-                CLOUDNEST CLIENT
+                CLOUDNEST VAULT
               </Text>
             </View>
 
@@ -144,7 +144,7 @@ export default function SignInScreen() {
                   { color: colors.onSurfaceVariant, marginLeft: 4, fontSize: 10 },
                 ]}
               >
-                v2.4-e2ee
+                Protected
               </Text>
             </View>
           </View>
@@ -318,7 +318,7 @@ export default function SignInScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Cryptographic Guarantee Card */}
+          {/* Security Guarantee Card */}
           <View
             style={[
               styles.guaranteeCard,
@@ -338,7 +338,7 @@ export default function SignInScreen() {
                     { color: colors.onSurface, fontWeight: '600', marginLeft: 6 },
                   ]}
                 >
-                  Zero-Knowledge Client
+                  Private & Secure
                 </Text>
               </View>
               <View
@@ -348,7 +348,7 @@ export default function SignInScreen() {
                 ]}
               >
                 <Text style={[typography.monoSm, { color: colors.secondary, fontSize: 10 }]}>
-                  Encrypted
+                  Protected
                 </Text>
               </View>
             </View>
@@ -359,7 +359,7 @@ export default function SignInScreen() {
                 { color: colors.onSurfaceVariant, marginTop: 8, lineHeight: 18 },
               ]}
             >
-              Files are partitioned into binary chunks, encrypted locally on device with AES-256-GCM, and stored across your private Telegram storage channel.
+              Files are encrypted safely on your device before uploading. No one else can see your photos, videos, or documents.
             </Text>
           </View>
 
@@ -370,7 +370,7 @@ export default function SignInScreen() {
               { color: colors.outline, textAlign: 'center', marginTop: 24, fontSize: 11 },
             ]}
           >
-            By signing in, you agree to CloudNest’s End-to-End Encryption Architecture.
+            By signing in, you agree to CloudNest’s Terms of Service & Privacy Policy.
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>

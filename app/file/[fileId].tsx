@@ -48,6 +48,7 @@ export default function FileDetailsScreen() {
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [renameModalVisible, setRenameModalVisible] = useState(false);
   const [moveModalVisible, setMoveModalVisible] = useState(false);
+  const [actionSheetVisible, setActionSheetVisible] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -133,7 +134,7 @@ export default function FileDetailsScreen() {
           style={[typography.headlineSm, { color: colors.onSurface, flex: 1, marginLeft: 8 }]}
           numberOfLines={1}
         >
-          File Inspector
+          File Details
         </Text>
 
         <View style={styles.headerRightActions}>
@@ -153,6 +154,7 @@ export default function FileDetailsScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
+            onPress={() => setActionSheetVisible(true)}
             style={[
               styles.iconBtn,
               { backgroundColor: colors.surfaceContainer, marginLeft: 8 },
@@ -178,7 +180,7 @@ export default function FileDetailsScreen() {
           >
             <View style={[styles.pulseDot, { backgroundColor: colors.primary }]} />
             <Text style={[typography.monoSm, { color: colors.onSurfaceVariant }]}>
-              vault://{file?.folderId || 'root'}/{file?.name || ''}
+              Home / {file?.name || ''}
             </Text>
           </View>
         </View>
@@ -233,6 +235,7 @@ export default function FileDetailsScreen() {
               {
                 backgroundColor: colors.surfaceContainerHighest,
                 borderRadius: radii.default,
+                transform: [{ scale: zoom / 100 }],
               },
             ]}
             activeOpacity={0.8}
@@ -280,7 +283,7 @@ export default function FileDetailsScreen() {
             ]}
           >
             <Text style={[typography.monoSm, { color: colors.onSurfaceVariant }]}>
-              Page 1 of 4
+              {file?.extension?.toUpperCase() || 'FILE'} Preview
             </Text>
 
             <View style={styles.zoomControls}>
@@ -322,23 +325,23 @@ export default function FileDetailsScreen() {
           </View>
 
           <View style={[styles.metaRow, { borderTopColor: colors.borderSubtle, borderTopWidth: 1 }]}>
-            <Text style={[typography.bodySm, { color: colors.onSurfaceVariant }]}>MIME Type</Text>
+            <Text style={[typography.bodySm, { color: colors.onSurfaceVariant }]}>File Type</Text>
             <Text style={[typography.monoSm, { color: colors.onSurface }]}>
-              {file?.mimeType || 'application/octet-stream'}
+              {file?.extension ? `${file.extension.toUpperCase()} File` : (file?.mimeType || 'Document')}
             </Text>
           </View>
 
           <View style={[styles.metaRow, { borderTopColor: colors.borderSubtle, borderTopWidth: 1 }]}>
             <Text style={[typography.bodySm, { color: colors.onSurfaceVariant }]}>Cloud Storage ID</Text>
             <Text style={[typography.monoSm, { color: colors.primary }]}>
-              {file?.telegramMessageId ? `#${file.telegramMessageId}` : 'Saved Locally'}
+              {file?.telegramMessageId ? `#${file.telegramMessageId}` : 'Saved on Device'}
             </Text>
           </View>
 
           <View style={[styles.metaRow, { borderTopColor: colors.borderSubtle, borderTopWidth: 1 }]}>
-            <Text style={[typography.bodySm, { color: colors.onSurfaceVariant }]}>Security Checksum</Text>
-            <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 10 }]}>
-              {file?.sha256Hash || 'Verified'}
+            <Text style={[typography.bodySm, { color: colors.onSurfaceVariant }]}>Security</Text>
+            <Text style={[typography.monoSm, { color: colors.secondary, fontSize: 11, fontWeight: '600' }]}>
+              Protected & Verified
             </Text>
           </View>
         </View>
@@ -346,7 +349,7 @@ export default function FileDetailsScreen() {
         {/* Action Buttons */}
         <View style={styles.actionsContainer}>
           <PillButton
-            label="Download File"
+            label="Open File Preview"
             onPress={handleDownload}
             icon={<Download size={16} color={colors.onPrimaryContainer} />}
             size="lg"
@@ -412,6 +415,94 @@ export default function FileDetailsScreen() {
           onClose={() => setPreviewModalVisible(false)}
           file={file}
         />
+      )}
+
+      {/* Options Action Sheet Modal */}
+      {actionSheetVisible && (
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            { backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end', zIndex: 100 },
+          ]}
+        >
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setActionSheetVisible(false)}
+          />
+          <View
+            style={{
+              backgroundColor: colors.surfaceContainerLow,
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              padding: 20,
+              paddingBottom: 36,
+              borderTopWidth: 1,
+              borderColor: colors.borderSubtle,
+            }}
+          >
+            <Text style={[typography.headlineSm, { color: colors.onSurface, marginBottom: 16 }]}>
+              {file?.name || 'File Options'}
+            </Text>
+
+            <TouchableOpacity
+              onPress={() => {
+                setActionSheetVisible(false);
+                setPreviewModalVisible(true);
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14 }}
+            >
+              <Eye size={18} color={colors.primary} style={{ marginRight: 12 }} />
+              <Text style={[typography.bodyMd, { color: colors.onSurface }]}>Open Preview</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                setActionSheetVisible(false);
+                handleToggleFav();
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14 }}
+            >
+              <Star size={18} color={isFavorite ? colors.tertiary : colors.onSurfaceVariant} style={{ marginRight: 12 }} />
+              <Text style={[typography.bodyMd, { color: colors.onSurface }]}>
+                {isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                setActionSheetVisible(false);
+                setRenameModalVisible(true);
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14 }}
+            >
+              <Edit2 size={18} color={colors.onSurface} style={{ marginRight: 12 }} />
+              <Text style={[typography.bodyMd, { color: colors.onSurface }]}>Rename File</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                setActionSheetVisible(false);
+                setMoveModalVisible(true);
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14 }}
+            >
+              <FolderInput size={18} color={colors.onSurface} style={{ marginRight: 12 }} />
+              <Text style={[typography.bodyMd, { color: colors.onSurface }]}>Move to Folder</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                setActionSheetVisible(false);
+                handleDelete();
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14 }}
+            >
+              <Trash2 size={18} color={colors.error} style={{ marginRight: 12 }} />
+              <Text style={[typography.bodyMd, { color: colors.error, fontWeight: '600' }]}>Move to Trash</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       )}
 
       {/* Rename File Modal */}

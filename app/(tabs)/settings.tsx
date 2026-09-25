@@ -33,6 +33,7 @@ import { useVaultStore } from '../../store/useVaultStore';
 import { BiometricService } from '../../services/crypto/biometrics';
 import { seedHexToMnemonic } from '../../services/crypto/mnemonic';
 import { SecureStorageService } from '../../services/crypto/secureStore';
+import { CacheManager } from '../../services/storage/cacheManager';
 import { RecoveryPhraseModal } from '../../components/settings/RecoveryPhraseModal';
 import { MTProtoClient } from '../../services/telegram/mtprotoClient';
 
@@ -54,7 +55,6 @@ export default function SettingsScreen() {
 
   const [biometrics, setBiometrics] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState('Biometrics');
-  const [pinLock, setPinLock] = useState(false);
   const [cacheMetrics, setCacheMetrics] = useState({
     cachedFilesCount: 0,
     formattedSize: '0 B',
@@ -65,7 +65,6 @@ export default function SettingsScreen() {
   const [keyFingerprint, setKeyFingerprint] = useState('0x0000…0000');
 
   const refreshCacheMetrics = async () => {
-    const { CacheManager } = await import('../../services/storage/cacheManager');
     const m = await CacheManager.getMetrics();
     setCacheMetrics({
       cachedFilesCount: m.cachedFilesCount,
@@ -106,12 +105,12 @@ export default function SettingsScreen() {
 
   const handleToggleBiometrics = async (val: boolean) => {
     if (val) {
-      const success = await BiometricService.authenticate('Authenticate to enable vault lock');
+      const success = await BiometricService.authenticate('Authenticate to enable screen lock');
       if (success) {
         setBiometrics(true);
         await BiometricService.setBiometricLockEnabled(true);
       } else {
-        Alert.alert('Authentication Failed', 'Could not verify biometric identity.');
+        Alert.alert('Authentication Failed', 'Could not verify identity.');
       }
     } else {
       setBiometrics(false);
@@ -122,19 +121,18 @@ export default function SettingsScreen() {
   const handleClearCache = () => {
     Alert.alert(
       'Clear Offline Cache',
-      'This will remove decrypted local file copies from device storage. Your files remain safe in your Telegram vault.',
+      'This will remove cached files from your device. Your files remain safe in your cloud storage.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Clear Cache',
           style: 'destructive',
           onPress: async () => {
-            const { CacheManager } = await import('../../services/storage/cacheManager');
             const res = await CacheManager.clearAllCache();
             await refreshCacheMetrics();
             Alert.alert(
               'Cache Cleared',
-              `Purged ${res.evictedCount} local files (${CacheManager.formatBytes(res.freedBytes)} freed).`
+              `Cleared ${res.evictedCount} local files (${CacheManager.formatBytes(res.freedBytes)} freed).`
             );
           },
         },
@@ -162,14 +160,16 @@ export default function SettingsScreen() {
 
   const handleExportKey = async () => {
     if (biometrics) {
-      const success = await BiometricService.authenticate('Authorize export of recovery phrase');
+      const success = await BiometricService.authenticate('Authorize viewing recovery phrase');
       if (!success) {
-        Alert.alert('Authentication Required', 'Biometric confirmation required to export master key.');
+        Alert.alert('Authentication Required', 'Authentication required to view recovery phrase.');
         return;
       }
     }
     setRecoveryModalVisible(true);
   };
+
+  const formattedCloudUsed = CacheManager.formatBytes(storageStats?.totalUsedBytes || 0);
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.surface }]}>
@@ -189,7 +189,7 @@ export default function SettingsScreen() {
                 { backgroundColor: colors.surfaceContainerHigh },
               ]}
             >
-              <Text style={[typography.monoSm, { color: colors.onSurfaceVariant }]}>v2.4</Text>
+              <Text style={[typography.monoSm, { color: colors.onSurfaceVariant }]}>v1.0.0</Text>
             </View>
           </View>
 
@@ -201,7 +201,7 @@ export default function SettingsScreen() {
           >
             <View style={[styles.enclavePulseDot, { backgroundColor: colors.secondary }]} />
             <Text style={[typography.monoSm, { color: colors.secondary, fontWeight: '600' }]}>
-              SECURE
+              Protected
             </Text>
           </View>
         </View>
@@ -304,7 +304,7 @@ export default function SettingsScreen() {
                       },
                     ]}
                   >
-                    ONLINE
+                    Online
                   </Text>
                 </View>
               </View>
@@ -312,11 +312,11 @@ export default function SettingsScreen() {
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Server size={12} color={colors.primary} style={{ marginRight: 4 }} />
                   <Text style={[typography.monoSm, { color: colors.primary }]}>
-                    Telegram Cloud • End-to-End Encrypted
+                    Private Cloud Storage
                   </Text>
                 </View>
                 <Text style={[typography.monoSm, { color: colors.outline, fontSize: 10 }]}>
-                  Active
+                  Encrypted & Active
                 </Text>
               </View>
             </View>
@@ -333,12 +333,12 @@ export default function SettingsScreen() {
                   Sign Out
                 </Text>
               </View>
-              <Text style={[typography.labelSm, { color: colors.outline }]}>Log out of account</Text>
+              <Text style={[typography.labelSm, { color: colors.outline }]}>Sign out of your Telegram account</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Section 2: Storage & Network */}
+        {/* Section 2: Storage & Cache */}
         <View style={styles.sectionContainer}>
           <Text
             style={[
@@ -346,7 +346,7 @@ export default function SettingsScreen() {
               { color: colors.onSurfaceVariant, marginBottom: 8, letterSpacing: 0.8 },
             ]}
           >
-            STORAGE & NETWORK
+            STORAGE & CACHE
           </Text>
 
           <View
@@ -359,7 +359,7 @@ export default function SettingsScreen() {
               },
             ]}
           >
-            {/* Telegram Cloud Quota */}
+            {/* Cloud Storage Usage */}
             <View style={styles.quotaRow}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <View
@@ -372,10 +372,10 @@ export default function SettingsScreen() {
                 </View>
                 <View style={{ marginLeft: 10 }}>
                   <Text style={[typography.bodyMd, { color: colors.onSurface, fontWeight: '500' }]}>
-                    Telegram Cloud Quota
+                    Cloud Storage
                   </Text>
                   <Text style={[typography.bodySm, { color: colors.onSurfaceVariant }]}>
-                    23.4 GB of Unlimited Telegram Cloud
+                    {formattedCloudUsed} used of Unlimited Cloud Storage
                   </Text>
                 </View>
               </View>
@@ -397,7 +397,7 @@ export default function SettingsScreen() {
                     Offline Device Cache
                   </Text>
                   <Text style={[typography.monoSm, { color: colors.onSurfaceVariant }]}>
-                    {cacheMetrics.formattedSize} of {cacheMetrics.formattedMaxLimit} limit ({cacheMetrics.cachedFilesCount} files)
+                    {cacheMetrics.formattedSize} stored on device ({cacheMetrics.cachedFilesCount} files)
                   </Text>
                 </View>
               </View>
@@ -416,7 +416,7 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Section 3: Appearance & Theme Switcher */}
+        {/* Section 3: Appearance */}
         <View style={styles.sectionContainer}>
           <Text
             style={[
@@ -424,7 +424,7 @@ export default function SettingsScreen() {
               { color: colors.onSurfaceVariant, marginBottom: 8, letterSpacing: 0.8 },
             ]}
           >
-            APPEARANCE (DUAL-MODE DESIGN SYSTEM)
+            APPEARANCE
           </Text>
 
           <View
@@ -446,10 +446,10 @@ export default function SettingsScreen() {
                 )}
                 <View>
                   <Text style={[typography.bodyMd, { color: colors.onSurface, fontWeight: '500' }]}>
-                    Dark Mode Theme
+                    Dark Mode
                   </Text>
                   <Text style={[typography.bodySm, { color: colors.onSurfaceVariant }]}>
-                    {mode === 'dark' ? 'Obsidian Void (#12131a)' : 'Institutional Light (#F2F2F7)'}
+                    {mode === 'dark' ? 'Dark Theme' : 'Light Theme'}
                   </Text>
                 </View>
               </View>
@@ -490,28 +490,16 @@ export default function SettingsScreen() {
                 <Fingerprint size={18} color={colors.primary} style={{ marginRight: 10 }} />
                 <View style={{ flex: 1 }}>
                   <Text style={[typography.bodyMd, { color: colors.onSurface, fontWeight: '500' }]}>
-                    {biometricLabel} Vault Lock
+                    {biometricLabel} Screen Lock
                   </Text>
                   <Text style={[typography.bodySm, { color: colors.onSurfaceVariant, fontSize: 12 }]}>
-                    Require {biometricLabel} to unlock and view files
+                    Require {biometricLabel} to open CloudNest
                   </Text>
                 </View>
               </View>
               <Switch
                 value={biometrics}
                 onValueChange={handleToggleBiometrics}
-                trackColor={{ false: colors.surfaceContainerHighest, true: colors.primary }}
-              />
-            </View>
-
-            <View style={[styles.settingToggleRow, { borderTopColor: colors.borderSubtle, borderTopWidth: 1 }]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Lock size={18} color={colors.primary} style={{ marginRight: 10 }} />
-                <Text style={[typography.bodyMd, { color: colors.onSurface }]}>App PIN Lock</Text>
-              </View>
-              <Switch
-                value={pinLock}
-                onValueChange={setPinLock}
                 trackColor={{ false: colors.surfaceContainerHighest, true: colors.primary }}
               />
             </View>
@@ -523,7 +511,10 @@ export default function SettingsScreen() {
             >
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Key size={18} color={colors.tertiary} style={{ marginRight: 10 }} />
-                <Text style={[typography.bodyMd, { color: colors.onSurface }]}>Export Master Seed Phrase</Text>
+                <View>
+                  <Text style={[typography.bodyMd, { color: colors.onSurface }]}>Backup Recovery Phrase (12 Words)</Text>
+                  <Text style={[typography.bodySm, { color: colors.onSurfaceVariant, fontSize: 12 }]}>View recovery key to backup your files</Text>
+                </View>
               </View>
               <ChevronRight size={16} color={colors.onSurfaceVariant} />
             </TouchableOpacity>
@@ -535,7 +526,10 @@ export default function SettingsScreen() {
             >
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Trash2 size={18} color={colors.error} style={{ marginRight: 10 }} />
-                <Text style={[typography.bodyMd, { color: colors.onSurface }]}>Trash & Purge Queue</Text>
+                <View>
+                  <Text style={[typography.bodyMd, { color: colors.onSurface }]}>Trash</Text>
+                  <Text style={[typography.bodySm, { color: colors.onSurfaceVariant, fontSize: 12 }]}>View and restore deleted files</Text>
+                </View>
               </View>
               <ChevronRight size={16} color={colors.onSurfaceVariant} />
             </TouchableOpacity>
@@ -566,7 +560,7 @@ export default function SettingsScreen() {
           >
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Info size={18} color={colors.primary} style={{ marginRight: 8 }} />
-              <Text style={[typography.labelMd, { color: colors.onSurface }]}>CloudNest v2.4.0 (Build 2026)</Text>
+              <Text style={[typography.labelMd, { color: colors.onSurface }]}>CloudNest v1.0.0</Text>
             </View>
             <Text
               style={[
@@ -574,7 +568,7 @@ export default function SettingsScreen() {
                 { color: colors.onSurfaceVariant, marginTop: 6, lineHeight: 18 },
               ]}
             >
-              Serverless personal cloud drive powered by client-side AES-256-GCM encryption and Telegram MTProto object storage.
+              Private cloud storage with end-to-end encryption. Your files are encrypted on your device and safely saved to your personal Telegram cloud.
             </Text>
           </View>
         </View>

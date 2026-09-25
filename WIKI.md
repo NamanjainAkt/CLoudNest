@@ -644,3 +644,91 @@ To improve user experience and eliminate intimidating cryptographic and network 
      - **Open File Details** (`/file/[fileId]`)
      - **Toggle Favorite** (instantly updates SQLite and refreshes results)
      - **Move to Trash** (with confirmation dialog and automatic list refresh)
+
+---
+
+## 24. Comprehensive UI Element Audit, Jargon Removal & Interactive Actions
+
+### 24.1 Objectives
+1. **Zero Dead UI Elements:** Audit every screen and component across CloudNest. Ensure all buttons, toggles, icons, and menus have real interactive handlers, state backing, and persistent effects.
+2. **Plain Language & Friendly UX:** Strip cryptographic, server-side, and networking jargon (`AES-256-GCM`, `PBKDF2-HMAC-SHA512`, `RAW 0-EXP`, `P2P NODE`, `Zero-Knowledge Handshake`, `Transmission Interrupted`, `Chunk X/Y`, `Telegram Chunk #ID`, `TG Enclave`, `v2.4-e2ee`) and replace them with clear, friendly, and reliable terminology (`Cloud Storage`, `Encrypted`, `Private & Safe`, `Offline Ready`, `Protected`).
+3. **Responsive & Compact UI:** Ensure all screens (Dashboard, Folder View, File Details, Settings, Trash, Auth) render compactly and adapt smoothly across varying mobile and tablet display sizes.
+
+### 24.2 Detailed Screen-by-Screen Improvements
+
+#### 1. Settings (`app/(tabs)/settings.tsx` & `components/settings/RecoveryPhraseModal.tsx`)
+- **Real Dynamic Storage Metrics:** Removed hardcoded `23.4 GB` placeholder. Integrated dynamic SQLite aggregation `storageStats.totalUsedBytes` formatted via `formatBytes()`.
+- **Eliminated Dead PIN Switch:** Removed the dead `pinLock` switch that had no persistence or hardware backing. Biometric and system passcode protection is managed natively and reliably by `BiometricService`.
+- **Native Clipboard Copying:** Installed `expo-clipboard` to power the "Copy Phrase" action in the 12-Word Recovery Phrase modal with native system clipboard support, replacing simple alerts.
+- **Simplified Terminology:**
+  - `STORAGE & CACHE METRICS` → `STORAGE & CACHE`
+  - `ENCLAVE SECURE` → `Protected`
+  - `Telegram Enclave Client v2.4` → `CloudNest v1.0.0`
+  - `Hardware Session Enclave` → `Cloud Storage Connection`
+  - `Vault Recovery Phrase` → `Recovery Phrase (12 Words)`
+  - `Master Fingerprint` → `Security Key ID`
+  - Plain-language backup reassurance explaining how the 12 words restore the vault on any device.
+
+#### 2. Trash Management (`app/trash.tsx`)
+- **Functional Sort Cycle:** Connected the previously dead `sortBtn` to cycle sort order: `Date Deleted (Newest)`, `Date Deleted (Oldest)`, `Name (A to Z)` with live sorting of `sortedFiles`.
+- **Floating Bulk Actions Bar:** Implemented a contextual floating action bar when one or more files are selected, providing one-tap **Restore Selected** and **Delete Forever** (with confirmation dialog).
+- **Simplified Header & Subtitles:** Replaced jargon (`30-Day Auto Delete`, `in trash`) with clear file counts (`X items in trash`).
+
+#### 3. File Details Screen (`app/file/[fileId].tsx`)
+- **Complete File Actions Sheet:** Connected the previously dead header `MoreVertical` button to trigger a bottom action sheet allowing users to:
+  - Open In-App Fullscreen Preview
+  - Toggle Favorite
+  - Rename File
+  - Move to Folder
+  - Delete File (Move to Trash)
+- **Interactive Zoom Controls:** Wired up preview card zoom controls (`zoomIn`, `zoomOut`, `zoomReset`) to visually scale the document card (`transform: [{ scale: zoom / 100 }]`).
+- **Clean Friendly Metadata:**
+  - `Page 1 of 4` → `${file.extension.toUpperCase()} Preview`
+  - `vault://root/...` → `Home / ${file.name}`
+  - `AES-256-GCM In-Memory` → `Protected & Verified`
+  - Replaced technical labels with `File Size`, `File Type`, and `Cloud Storage ID`.
+
+#### 4. Folder View Screen (`app/folder/[folderId].tsx`)
+- **Interactive Sorting & View Modes:**
+  - Wired the top `SlidersHorizontal` button to toggle sort modes (`date_desc`, `name_asc`, `size_desc`) with active visual badge indicators.
+  - Wired the `isGridView` toggle to switch between responsive 2-column card layout and detailed vertical list layout.
+- **Folder File Action Sheet:** Connected `FileListItem.onMorePress` and grid card 3-dots to a bottom action sheet supporting Open, Favorite, Rename, Move, and Delete actions.
+- **Friendly Status Banner:** Replaced jargon with `Protected with End-to-End Encryption • Synced to Cloud`.
+
+#### 5. Dashboard Folder Grid (`components/dashboard/FolderGrid.tsx`)
+- **Folder Management Sheet:** Converted static `MoreVertical` icons on folder cards into active touchables opening an action sheet with:
+  - **Open Folder**
+  - **Rename Folder** (with dedicated interactive modal dialog)
+  - **Delete Folder** (with confirmation dialog, cascade soft-deleting contained files)
+- **Folder Database & Store Operations:** Added `FolderDao.renameFolder()`, `FolderDao.deleteFolder()`, `renameFolder()`, and `deleteFolder()` actions in `dbClient.ts` and `useVaultStore.ts`.
+
+#### 6. Uploads Queue & Item Rows (`app/(tabs)/uploads.tsx` & `components/queue/QueueItemRow.tsx`)
+- **Plain Language Transfer Indicators:**
+  - `4.2 MB/s • Encrypting` → `Uploading files...`
+  - `100% Synced to Telegram` → `Uploaded to Cloud`
+  - `Transmission Interrupted` → `Upload Failed`
+  - `Chunk X/Y synced` → `Part X of Y uploaded`
+  - `End-to-End Encrypted • Wi-Fi Priority` → `Private & Encrypted • Automatic Cloud Sync`
+  - Empty state updated to friendly explanation: "Files you upload to CloudNest will show their progress and status here."
+
+#### 7. Authentication Flow (`app/(auth)/`)
+- **Onboarding (`onboarding.tsx`):**
+  - Replaced `RAW 0-EXP`, `P2P NODE`, `AES-GCM 256`, `Zero-Knowledge` badges with `FREE STORAGE`, `UNLIMITED`, `OFFLINE READY`, `ALWAYS AVAILABLE`, `ENCRYPTED`, `PRIVATE & SAFE`.
+  - Updated version tag from `v2.4` to `v1.0.0`.
+- **Sign In (`sign-in.tsx`):**
+  - Replaced `CLOUDNEST CLIENT` / `v2.4-e2ee` with `CLOUDNEST VAULT` / `Protected`.
+  - Replaced raw cryptographic partitioning descriptions with clear reassurance: "Files are encrypted safely on your device before uploading. No one else can see your photos, videos, or documents."
+  - Simplified legal terms to "By signing in, you agree to CloudNest’s Terms of Service & Privacy Policy."
+- **OTP Verification (`otp-verify.tsx`):**
+  - Replaced `ZERO-KNOWLEDGE HANDSHAKE` with `SECURE LOGIN`.
+  - Replaced `Listening for session grant on Telegram desktop…` with `Code sent directly to your Telegram chat`.
+  - Replaced hardware enclave jargon with `Safe & Private Storage`: "CloudNest never stores your files on intermediate servers. Your data is encrypted on your device and private to you."
+  - Updated CTA from `Verify & Unlock Vault` to `Verify & Continue`.
+- **Create Vault (`create-vault.tsx`):**
+  - Replaced `AES-256-GCM · PBKDF2-HMAC-SHA512` with `End-to-End Encrypted Storage`.
+  - Replaced raw hex keys and shard allocations with 4 clean user-friendly milestones:
+    1. *Creating security keys* — Generating unique encryption keys (Done)
+    2. *Setting up secure storage* — Private container ready on device (Done)
+    3. *Connecting to cloud storage* — Setting up private storage channel… (Active)
+    4. *Finishing setup* — Preparing your offline file manager (Pending/Done)
+

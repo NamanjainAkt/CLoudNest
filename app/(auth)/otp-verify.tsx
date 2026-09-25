@@ -84,7 +84,7 @@ export default function OtpVerifyScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Zero-Knowledge Handshake Badge */}
+        {/* Secure Login Badge */}
         <View
           style={[
             styles.handshakePill,
@@ -98,7 +98,7 @@ export default function OtpVerifyScreen() {
               { color: colors.onSurfaceVariant, marginLeft: 5, letterSpacing: 0.8 },
             ]}
           >
-            ZERO-KNOWLEDGE HANDSHAKE
+            SECURE LOGIN
           </Text>
         </View>
 
@@ -177,7 +177,7 @@ export default function OtpVerifyScreen() {
               { color: colors.onSurfaceVariant, marginLeft: 6, fontSize: 11 },
             ]}
           >
-            Listening for session grant on Telegram desktop…
+            Code sent directly to your Telegram chat
           </Text>
         </View>
 
@@ -202,7 +202,7 @@ export default function OtpVerifyScreen() {
           </Text>
         </View>
 
-        {/* End-to-End Vault Trust Card */}
+        {/* Safe & Private Storage Card */}
         <View
           style={[
             styles.trustCard,
@@ -223,7 +223,7 @@ export default function OtpVerifyScreen() {
           </View>
           <View style={styles.trustTextCol}>
             <Text style={[typography.labelMd, { color: colors.onSurface }]}>
-              End-to-End Vault Trust
+              Safe & Private Storage
             </Text>
             <Text
               style={[
@@ -231,14 +231,14 @@ export default function OtpVerifyScreen() {
                 { color: colors.onSurfaceVariant, marginTop: 2, lineHeight: 16 },
               ]}
             >
-              CloudNest never stores your session keys unencrypted. Local decryption occurs strictly in hardware-backed secure enclaves.
+              CloudNest never stores your files on intermediate servers. Your data is encrypted on your device and private to you.
             </Text>
           </View>
         </View>
 
         {/* Primary CTA */}
         <PillButton
-          label="Verify & Unlock Vault"
+          label="Verify & Continue"
           onPress={handleVerify}
           loading={loading}
           icon={<Key size={16} color={colors.onPrimaryContainer} />}

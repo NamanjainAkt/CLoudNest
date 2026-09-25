@@ -161,10 +161,10 @@ export const QueueItemRow = memo<QueueItemRowProps>(({
           />
           <Text style={[typography.monoSm, { color: colors.onSurfaceVariant }]}>
             {item.status === 'completed'
-              ? '100% Synced to Telegram'
+              ? 'Uploaded to Cloud'
               : item.status === 'failed'
-              ? 'Transmission Interrupted'
-              : `Chunk ${item.currentChunk}/${item.totalChunks} synced`}
+              ? 'Upload Failed'
+              : `Part ${item.currentChunk} of ${item.totalChunks} uploaded`}
           </Text>
         </View>
 

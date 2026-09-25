@@ -26,6 +26,8 @@ interface VaultState {
   deletePermanently: (fileId: string) => Promise<void>;
   emptyTrash: () => Promise<void>;
   createFolder: (name: string, parentId?: string | null) => Promise<string>;
+  renameFolder: (folderId: string, newName: string) => Promise<void>;
+  deleteFolder: (folderId: string) => Promise<void>;
   renameFile: (fileId: string, newName: string) => Promise<void>;
   moveFile: (fileId: string, targetFolderId: string | null) => Promise<void>;
   addUploadQueueItem: (item: Omit<UploadQueueItem, 'id' | 'status' | 'progress' | 'currentChunk' | 'speed' | 'retryCount' | 'createdAt' | 'updatedAt'>) => Promise<void>;
@@ -130,6 +132,16 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     const id = await FolderDao.createFolder(name, parentId || null);
     await get().loadVaultData();
     return id;
+  },
+
+  renameFolder: async (folderId: string, newName: string) => {
+    await FolderDao.renameFolder(folderId, newName);
+    await get().loadVaultData();
+  },
+
+  deleteFolder: async (folderId: string) => {
+    await FolderDao.deleteFolder(folderId);
+    await get().loadVaultData();
   },
 
   renameFile: async (fileId: string, newName: string) => {

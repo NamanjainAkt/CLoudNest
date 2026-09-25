@@ -154,7 +154,7 @@ export default function CreateVaultScreen() {
           </View>
         </View>
 
-        {/* Title and Entropy Status */}
+        {/* Title and Encryption Status */}
         <Text
           style={[
             typography.headlineMd,
@@ -167,7 +167,7 @@ export default function CreateVaultScreen() {
         <View style={styles.entropyPill}>
           <View style={[styles.pulseDot, { backgroundColor: colors.primary }]} />
           <Text style={[typography.monoSm, { color: colors.onSurfaceVariant }]}>
-            AES-256-GCM · PBKDF2-HMAC-SHA512
+            End-to-End Encrypted Storage
           </Text>
         </View>
 
@@ -235,10 +235,10 @@ export default function CreateVaultScreen() {
             </View>
             <View style={styles.milestoneText}>
               <Text style={[typography.labelMd, { color: colors.onSurface }]}>
-                Generating 256-bit master key
+                Creating security keys
               </Text>
               <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, marginTop: 2 }]}>
-                0x9F4C…82EA · 600,000 rounds
+                Generating unique encryption keys
               </Text>
             </View>
             <Text style={[typography.monoSm, { color: colors.primary }]}>Done</Text>
@@ -267,10 +267,10 @@ export default function CreateVaultScreen() {
             </View>
             <View style={styles.milestoneText}>
               <Text style={[typography.labelMd, { color: colors.onSurface }]}>
-                Initializing zero-knowledge container
+                Setting up secure storage
               </Text>
               <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, marginTop: 2 }]}>
-                Salt derived · Ephemeral nonce bound
+                Private container ready on device
               </Text>
             </View>
             <Text style={[typography.monoSm, { color: step >= 2 ? colors.primary : colors.onSurfaceVariant }]}>
@@ -304,10 +304,10 @@ export default function CreateVaultScreen() {
             </View>
             <View style={styles.milestoneText}>
               <Text style={[typography.labelMd, { color: colors.onSurface }]}>
-                Allocating encrypted telegram chunks
+                Connecting to cloud storage
               </Text>
               <Text style={[typography.monoSm, { color: colors.secondary, marginTop: 2 }]}>
-                Distributing payload across 4 shards…
+                Setting up private storage channel…
               </Text>
             </View>
             <Text style={[typography.monoSm, { color: step >= 4 ? colors.primary : colors.secondary }]}>
@@ -338,10 +338,10 @@ export default function CreateVaultScreen() {
             </View>
             <View style={styles.milestoneText}>
               <Text style={[typography.labelMd, { color: colors.onSurface }]}>
-                Finalizing local SQLite database
+                Finishing setup
               </Text>
               <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, marginTop: 2 }]}>
-                Indexed virtual filesystem initialized
+                Preparing your offline file manager
               </Text>
             </View>
             <Text style={[typography.monoSm, { color: step >= 4 ? colors.primary : colors.outline }]}>

@@ -30,23 +30,23 @@ const SLIDES: SlideData[] = [
   {
     id: '1',
     title: 'Unlimited Personal Cloud',
-    subtitle: 'No servers. Your storage. Completely private and bound to zero-knowledge protocol.',
-    badge1: 'RAW 0-EXP',
-    badge2: 'P2P NODE',
+    subtitle: 'Save photos, videos, and documents safely with no subscription fees or file limits.',
+    badge1: 'FREE STORAGE',
+    badge2: 'UNLIMITED',
   },
   {
     id: '2',
-    title: 'Offline First Architecture',
-    subtitle: 'Access, preview, and organize files in subways or flights without missing a beat.',
-    badge1: 'LOCAL CACHE',
-    badge2: '100% AVAILABLE',
+    title: 'Works Offline & Anywhere',
+    subtitle: 'Browse, preview, and organize your files even when you have no internet connection.',
+    badge1: 'OFFLINE ACCESS',
+    badge2: 'ALWAYS READY',
   },
   {
     id: '3',
-    title: 'Encrypted by Default',
-    subtitle: 'Files are sharded, encrypted on-device via AES-256-GCM, and stored across private Telegram channels.',
-    badge1: 'AES-GCM 256',
-    badge2: 'Zero-Knowledge',
+    title: 'Safe & Encrypted by Default',
+    subtitle: 'Your files are encrypted on your phone before uploading, so only you have the keys to view them.',
+    badge1: 'ENCRYPTED',
+    badge2: 'PRIVATE & SAFE',
   },
 ];
 
@@ -85,11 +85,11 @@ export default function OnboardingScreen() {
           </Svg>
           <View style={[styles.floatBadge1, { backgroundColor: colors.surfaceContainerHigh }]}>
             <Infinity size={13} color={colors.primary} />
-            <Text style={[typography.monoSm, { color: colors.onSurface, marginLeft: 4 }]}>RAW 0-EXP</Text>
+            <Text style={[typography.monoSm, { color: colors.onSurface, marginLeft: 4 }]}>FREE STORAGE</Text>
           </View>
           <View style={[styles.floatBadge2, { backgroundColor: colors.surfaceContainerHigh }]}>
             <Cloud size={13} color={colors.secondary} />
-            <Text style={[typography.monoSm, { color: colors.onSurface, marginLeft: 4 }]}>P2P NODE</Text>
+            <Text style={[typography.monoSm, { color: colors.onSurface, marginLeft: 4 }]}>UNLIMITED</Text>
           </View>
         </View>
       );
@@ -102,7 +102,7 @@ export default function OnboardingScreen() {
             <View style={styles.cacheCardHeader}>
               <View style={styles.cacheDotRow}>
                 <View style={[styles.cacheDot, { backgroundColor: colors.secondaryContainer }]} />
-                <Text style={[typography.monoSm, { color: colors.onSurfaceVariant }]}>LOCAL CACHE</Text>
+                <Text style={[typography.monoSm, { color: colors.onSurfaceVariant }]}>OFFLINE READY</Text>
               </View>
               <WifiOff size={16} color={colors.primary} />
             </View>
@@ -114,7 +114,7 @@ export default function OnboardingScreen() {
             </View>
 
             <View style={styles.cacheCardFooter}>
-              <Text style={[typography.monoSm, { color: colors.primary }]}>100% AVAILABLE</Text>
+              <Text style={[typography.monoSm, { color: colors.primary }]}>ALWAYS AVAILABLE</Text>
               <CheckCircle2 size={16} color={colors.primary} />
             </View>
           </View>
@@ -146,11 +146,11 @@ export default function OnboardingScreen() {
 
         <View style={[styles.floatBadge1, { backgroundColor: colors.surfaceContainerHigh }]}>
           <Lock size={13} color={colors.primary} />
-          <Text style={[typography.monoSm, { color: colors.onSurface, marginLeft: 4 }]}>AES-GCM 256</Text>
+          <Text style={[typography.monoSm, { color: colors.onSurface, marginLeft: 4 }]}>ENCRYPTED</Text>
         </View>
         <View style={[styles.floatBadge2, { backgroundColor: colors.surfaceContainerHigh }]}>
           <Shield size={13} color={colors.secondary} />
-          <Text style={[typography.monoSm, { color: colors.onSurface, marginLeft: 4 }]}>Zero-Knowledge</Text>
+          <Text style={[typography.monoSm, { color: colors.onSurface, marginLeft: 4 }]}>PRIVATE & SAFE</Text>
         </View>
       </View>
     );
@@ -176,7 +176,7 @@ export default function OnboardingScreen() {
           </Text>
           <View style={[styles.versionPill, { backgroundColor: colors.surfaceContainerHigh }]}>
             <View style={[styles.pulseDot, { backgroundColor: colors.primary }]} />
-            <Text style={[typography.monoSm, { color: colors.primary, fontSize: 10 }]}>v2.4</Text>
+            <Text style={[typography.monoSm, { color: colors.primary, fontSize: 10 }]}>v1.0.0</Text>
           </View>
         </View>
 
