@@ -6,7 +6,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -32,6 +31,7 @@ import { PillButton } from '../../components/common/PillButton';
 import { FullScreenPreviewModal } from '../../components/file-manager/FullScreenPreviewModal';
 import { RenameFileModal } from '../../components/file-manager/RenameFileModal';
 import { MoveFileModal } from '../../components/file-manager/MoveFileModal';
+import { CustomConfirmDialog } from '../../components/common/CustomConfirmDialog';
 
 export default function FileDetailsScreen() {
   const { colors, typography, radii } = useTheme();
@@ -49,6 +49,8 @@ export default function FileDetailsScreen() {
   const [renameModalVisible, setRenameModalVisible] = useState(false);
   const [moveModalVisible, setMoveModalVisible] = useState(false);
   const [actionSheetVisible, setActionSheetVisible] = useState(false);
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -71,23 +73,23 @@ export default function FileDetailsScreen() {
   };
 
   const handleDelete = () => {
-    Alert.alert(
-      'Move to Trash',
-      `Are you sure you want to move "${file?.name}" to trash? It will be automatically purged after 30 days.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Move to Trash',
-          style: 'destructive',
-          onPress: async () => {
-            if (file) {
-              await moveToTrash(file.id);
-              router.back();
-            }
-          },
-        },
-      ]
-    );
+    setActionSheetVisible(false);
+    setDeleteConfirmVisible(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (file) {
+      try {
+        setDeleteLoading(true);
+        await moveToTrash(file.id);
+        setDeleteLoading(false);
+        setDeleteConfirmVisible(false);
+        router.back();
+      } catch {
+        setDeleteLoading(false);
+        setDeleteConfirmVisible(false);
+      }
+    }
   };
 
   const handleDownload = () => {
@@ -519,6 +521,19 @@ export default function FileDetailsScreen() {
         currentFolderId={file?.folderId || null}
         onClose={() => setMoveModalVisible(false)}
         onMove={handleMove}
+      />
+
+      {/* Custom Move to Trash Dialog */}
+      <CustomConfirmDialog
+        visible={deleteConfirmVisible}
+        title="Move to Trash"
+        message={`Are you sure you want to move "${file?.name || 'this file'}" to trash? It will be automatically purged after 30 days.`}
+        confirmLabel="Move to Trash"
+        isDestructive
+        icon="trash"
+        confirmLoading={deleteLoading}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteConfirmVisible(false)}
       />
     </View>
   );

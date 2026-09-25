@@ -6,7 +6,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
@@ -22,6 +21,7 @@ import {
 import { useTheme } from '../theme/ThemeContext';
 import { useVaultStore } from '../store/useVaultStore';
 import { FileRecord } from '../services/types/models';
+import { CustomConfirmDialog } from '../components/common/CustomConfirmDialog';
 
 export default function TrashScreen() {
   const { colors, typography, radii } = useTheme();
@@ -30,6 +30,10 @@ export default function TrashScreen() {
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'name'>('newest');
+  const [emptyTrashVisible, setEmptyTrashVisible] = useState(false);
+  const [emptyLoading, setEmptyLoading] = useState(false);
+  const [deleteSelectedVisible, setDeleteSelectedVisible] = useState(false);
+  const [deleteSelectedLoading, setDeleteSelectedLoading] = useState(false);
 
   const formatBytes = (bytes: number) => {
     if (bytes <= 0) return '0 B';
@@ -42,25 +46,21 @@ export default function TrashScreen() {
   const totalTrashBytes = trashFiles.reduce((acc: number, f: FileRecord) => acc + (f.size || 0), 0);
 
   const handleEmptyTrash = () => {
-    if (trashFiles.length === 0) {
-      Alert.alert('Trash Empty', 'There are no items in trash to delete.');
-      return;
+    if (trashFiles.length === 0) return;
+    setEmptyTrashVisible(true);
+  };
+
+  const handleConfirmEmptyTrash = async () => {
+    try {
+      setEmptyLoading(true);
+      await emptyTrash();
+      setEmptyLoading(false);
+      setEmptyTrashVisible(false);
+      setSelectedIds([]);
+    } catch {
+      setEmptyLoading(false);
+      setEmptyTrashVisible(false);
     }
-    Alert.alert(
-      'Empty Trash',
-      `All ${trashFiles.length} item(s) will be permanently deleted immediately. This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Empty Trash',
-          style: 'destructive',
-          onPress: async () => {
-            await emptyTrash();
-            setSelectedIds([]);
-          },
-        },
-      ]
-    );
   };
 
   const handleToggleSelect = (id: string) => {
@@ -91,23 +91,23 @@ export default function TrashScreen() {
   };
 
   const handleDeleteSelected = () => {
-    Alert.alert(
-      'Delete Permanently',
-      `Permanently delete ${selectedIds.length} item(s)? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete Forever',
-          style: 'destructive',
-          onPress: async () => {
-            for (const id of selectedIds) {
-              await deletePermanently(id);
-            }
-            setSelectedIds([]);
-          },
-        },
-      ]
-    );
+    if (selectedIds.length === 0) return;
+    setDeleteSelectedVisible(true);
+  };
+
+  const handleConfirmDeleteSelected = async () => {
+    try {
+      setDeleteSelectedLoading(true);
+      for (const id of selectedIds) {
+        await deletePermanently(id);
+      }
+      setDeleteSelectedLoading(false);
+      setDeleteSelectedVisible(false);
+      setSelectedIds([]);
+    } catch {
+      setDeleteSelectedLoading(false);
+      setDeleteSelectedVisible(false);
+    }
   };
 
   const sortedFiles = [...trashFiles].sort((a, b) => {
@@ -412,6 +412,32 @@ export default function TrashScreen() {
           </View>
         )}
       </View>
+
+      {/* Empty Trash Confirmation Dialog */}
+      <CustomConfirmDialog
+        visible={emptyTrashVisible}
+        title="Empty Trash"
+        message={`All ${trashFiles.length} item(s) will be permanently deleted immediately. This cannot be undone.`}
+        confirmLabel="Empty Trash"
+        isDestructive
+        icon="trash"
+        confirmLoading={emptyLoading}
+        onConfirm={handleConfirmEmptyTrash}
+        onCancel={() => setEmptyTrashVisible(false)}
+      />
+
+      {/* Delete Selected Permanently Dialog */}
+      <CustomConfirmDialog
+        visible={deleteSelectedVisible}
+        title="Delete Permanently"
+        message={`Permanently delete ${selectedIds.length} item(s)? This cannot be undone.`}
+        confirmLabel="Delete Forever"
+        isDestructive
+        icon="trash"
+        confirmLoading={deleteSelectedLoading}
+        onConfirm={handleConfirmDeleteSelected}
+        onCancel={() => setDeleteSelectedVisible(false)}
+      />
     </View>
   );
 }

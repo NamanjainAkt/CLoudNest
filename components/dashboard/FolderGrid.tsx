@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Alert, Modal, TextInput, KeyboardAvoidingView, Platform, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Modal, TextInput, KeyboardAvoidingView, Platform, TouchableWithoutFeedback } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Folder, Lock, ShieldCheck, Send, MoreVertical, Plus, Edit2, Trash2, FolderOpen, X } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { FolderRecord } from '../../services/types/models';
 import { useVaultStore } from '../../store/useVaultStore';
+import { CustomConfirmDialog } from '../common/CustomConfirmDialog';
 
 export interface FolderGridProps {
   folders: FolderRecord[];
@@ -24,6 +25,8 @@ export const FolderGrid: React.FC<FolderGridProps> = ({ folders, onCreateFolderP
   const [actionModalVisible, setActionModalVisible] = useState(false);
   const [renameModalVisible, setRenameModalVisible] = useState(false);
   const [newName, setNewName] = useState('');
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const getFolderIcon = (name: string) => {
     const lower = name.toLowerCase();
@@ -244,20 +247,7 @@ export const FolderGrid: React.FC<FolderGridProps> = ({ folders, onCreateFolderP
             <TouchableOpacity
               onPress={() => {
                 setActionModalVisible(false);
-                Alert.alert(
-                  'Delete Folder',
-                  `Are you sure you want to move "${selectedFolder.name}" and all its files to trash?`,
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Move to Trash',
-                      style: 'destructive',
-                      onPress: async () => {
-                        await deleteFolder(selectedFolder.id);
-                      },
-                    },
-                  ]
-                );
+                setDeleteConfirmVisible(true);
               }}
               style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14 }}
             >
@@ -314,6 +304,31 @@ export const FolderGrid: React.FC<FolderGridProps> = ({ folders, onCreateFolderP
           </TouchableWithoutFeedback>
         </Modal>
       )}
+
+      {/* Delete Folder Confirmation Dialog */}
+      <CustomConfirmDialog
+        visible={deleteConfirmVisible}
+        title="Delete Folder"
+        message={`Are you sure you want to move "${selectedFolder?.name || 'this folder'}" and all its files to trash?`}
+        confirmLabel="Move to Trash"
+        isDestructive
+        icon="trash"
+        confirmLoading={deleteLoading}
+        onConfirm={async () => {
+          if (selectedFolder) {
+            try {
+              setDeleteLoading(true);
+              await deleteFolder(selectedFolder.id);
+              setDeleteLoading(false);
+              setDeleteConfirmVisible(false);
+            } catch {
+              setDeleteLoading(false);
+              setDeleteConfirmVisible(false);
+            }
+          }
+        }}
+        onCancel={() => setDeleteConfirmVisible(false)}
+      />
     </View>
   );
 };

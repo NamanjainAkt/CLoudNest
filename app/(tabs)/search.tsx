@@ -9,7 +9,6 @@ import {
   FlatList,
   Modal,
   TouchableWithoutFeedback,
-  Alert,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import {
@@ -32,6 +31,7 @@ import { FileListItem } from '../../components/file-manager/FileListItem';
 import { FileDao } from '../../services/db/dbClient';
 import { SecureStorageService } from '../../services/crypto/secureStore';
 import { FileRecord } from '../../services/types/models';
+import { CustomConfirmDialog } from '../../components/common/CustomConfirmDialog';
 
 type SortOption = 'date_desc' | 'date_asc' | 'name_asc' | 'name_desc' | 'size_desc' | 'size_asc';
 
@@ -66,6 +66,8 @@ export default function SearchScreen() {
   const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [actionFile, setActionFile] = useState<FileRecord | null>(null);
   const [actionModalVisible, setActionModalVisible] = useState(false);
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Sync route param changes to category state
@@ -160,25 +162,24 @@ export default function SearchScreen() {
 
   const handleDeleteFile = (file: FileRecord) => {
     setActionModalVisible(false);
-    Alert.alert(
-      'Move to Trash',
-      `Are you sure you want to move "${file.name}" to trash?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Move to Trash',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await FileDao.moveToTrash(file.id);
-              executeSearch();
-            } catch (err) {
-              console.error('[Search] Failed to delete file:', err);
-            }
-          },
-        },
-      ]
-    );
+    setActionFile(file);
+    setDeleteConfirmVisible(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (actionFile) {
+      try {
+        setDeleteLoading(true);
+        await FileDao.moveToTrash(actionFile.id);
+        setDeleteLoading(false);
+        setDeleteConfirmVisible(false);
+        executeSearch();
+      } catch (err) {
+        console.error('[Search] Failed to delete file:', err);
+        setDeleteLoading(false);
+        setDeleteConfirmVisible(false);
+      }
+    }
   };
 
   const hasActiveFilters = favoritesOnly || sortBy !== 'date_desc';
@@ -612,6 +613,19 @@ export default function SearchScreen() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      {/* Delete File Confirmation Dialog */}
+      <CustomConfirmDialog
+        visible={deleteConfirmVisible}
+        title="Move to Trash"
+        message={`Are you sure you want to move "${actionFile?.name || 'this file'}" to trash?`}
+        confirmLabel="Move to Trash"
+        isDestructive
+        icon="trash"
+        confirmLoading={deleteLoading}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteConfirmVisible(false)}
+      />
     </View>
   );
 }

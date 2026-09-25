@@ -7,7 +7,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
-  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
@@ -36,6 +35,7 @@ import { SecureStorageService } from '../../services/crypto/secureStore';
 import { CacheManager } from '../../services/storage/cacheManager';
 import { RecoveryPhraseModal } from '../../components/settings/RecoveryPhraseModal';
 import { MTProtoClient } from '../../services/telegram/mtprotoClient';
+import { CustomConfirmDialog } from '../../components/common/CustomConfirmDialog';
 
 export default function SettingsScreen() {
   const { colors, typography, radii, mode, toggleTheme } = useTheme();
@@ -63,6 +63,15 @@ export default function SettingsScreen() {
   const [recoveryModalVisible, setRecoveryModalVisible] = useState(false);
   const [recoveryWords, setRecoveryWords] = useState<string[]>([]);
   const [keyFingerprint, setKeyFingerprint] = useState('0x0000…0000');
+  const [clearCacheVisible, setClearCacheVisible] = useState(false);
+  const [clearCacheLoading, setClearCacheLoading] = useState(false);
+  const [signOutVisible, setSignOutVisible] = useState(false);
+  const [signOutLoading, setSignOutLoading] = useState(false);
+  const [infoDialog, setInfoDialog] = useState<{ visible: boolean; title: string; message: string }>({
+    visible: false,
+    title: '',
+    message: '',
+  });
 
   const refreshCacheMetrics = async () => {
     const m = await CacheManager.getMetrics();
@@ -110,7 +119,11 @@ export default function SettingsScreen() {
         setBiometrics(true);
         await BiometricService.setBiometricLockEnabled(true);
       } else {
-        Alert.alert('Authentication Failed', 'Could not verify identity.');
+        setInfoDialog({
+          visible: true,
+          title: 'Authentication Failed',
+          message: 'Could not verify identity.',
+        });
       }
     } else {
       setBiometrics(false);
@@ -119,50 +132,53 @@ export default function SettingsScreen() {
   };
 
   const handleClearCache = () => {
-    Alert.alert(
-      'Clear Offline Cache',
-      'This will remove cached files from your device. Your files remain safe in your cloud storage.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear Cache',
-          style: 'destructive',
-          onPress: async () => {
-            const res = await CacheManager.clearAllCache();
-            await refreshCacheMetrics();
-            Alert.alert(
-              'Cache Cleared',
-              `Cleared ${res.evictedCount} local files (${CacheManager.formatBytes(res.freedBytes)} freed).`
-            );
-          },
-        },
-      ]
-    );
+    setClearCacheVisible(true);
+  };
+
+  const handleConfirmClearCache = async () => {
+    try {
+      setClearCacheLoading(true);
+      const res = await CacheManager.clearAllCache();
+      await refreshCacheMetrics();
+      setClearCacheLoading(false);
+      setClearCacheVisible(false);
+      setInfoDialog({
+        visible: true,
+        title: 'Cache Cleared',
+        message: `Cleared ${res.evictedCount} local files (${CacheManager.formatBytes(res.freedBytes)} freed).`,
+      });
+    } catch {
+      setClearCacheLoading(false);
+      setClearCacheVisible(false);
+    }
   };
 
   const handleSignOut = () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out? Your files will remain safely stored in Telegram Cloud.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            await signOut();
-            router.replace('/(auth)/onboarding');
-          },
-        },
-      ]
-    );
+    setSignOutVisible(true);
+  };
+
+  const handleConfirmSignOut = async () => {
+    try {
+      setSignOutLoading(true);
+      await signOut();
+      setSignOutLoading(false);
+      setSignOutVisible(false);
+      router.replace('/(auth)/onboarding');
+    } catch {
+      setSignOutLoading(false);
+      setSignOutVisible(false);
+    }
   };
 
   const handleExportKey = async () => {
     if (biometrics) {
       const success = await BiometricService.authenticate('Authorize viewing recovery phrase');
       if (!success) {
-        Alert.alert('Authentication Required', 'Authentication required to view recovery phrase.');
+        setInfoDialog({
+          visible: true,
+          title: 'Authentication Required',
+          message: 'Authentication required to view recovery phrase.',
+        });
         return;
       }
     }
@@ -580,6 +596,44 @@ export default function SettingsScreen() {
         onClose={() => setRecoveryModalVisible(false)}
         words={recoveryWords}
         keyFingerprint={keyFingerprint}
+      />
+
+      {/* Clear Cache Confirmation Dialog */}
+      <CustomConfirmDialog
+        visible={clearCacheVisible}
+        title="Clear Offline Cache"
+        message="This will remove cached files from your device. Your files remain safe in your cloud storage."
+        confirmLabel="Clear Cache"
+        isDestructive
+        icon="trash"
+        confirmLoading={clearCacheLoading}
+        onConfirm={handleConfirmClearCache}
+        onCancel={() => setClearCacheVisible(false)}
+      />
+
+      {/* Sign Out Confirmation Dialog */}
+      <CustomConfirmDialog
+        visible={signOutVisible}
+        title="Sign Out"
+        message="Are you sure you want to sign out? Your files will remain safely stored in Telegram Cloud."
+        confirmLabel="Sign Out"
+        isDestructive
+        icon="warning"
+        confirmLoading={signOutLoading}
+        onConfirm={handleConfirmSignOut}
+        onCancel={() => setSignOutVisible(false)}
+      />
+
+      {/* Info / Alert Dialog */}
+      <CustomConfirmDialog
+        visible={infoDialog.visible}
+        title={infoDialog.title}
+        message={infoDialog.message}
+        confirmLabel="OK"
+        cancelLabel=""
+        icon="info"
+        onConfirm={() => setInfoDialog({ visible: false, title: '', message: '' })}
+        onCancel={() => setInfoDialog({ visible: false, title: '', message: '' })}
       />
     </View>
   );
