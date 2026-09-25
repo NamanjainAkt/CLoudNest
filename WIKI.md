@@ -5,7 +5,7 @@
 > **Backend Architecture:** Serverless MTProto Client • Telegram Cloud Object Store • SQLite Local VFS  
 > **Security:** Zero-Knowledge Client-Side AES-256-GCM Authenticated Encryption • PBKDF2 • Expo SecureStore • Hardware Biometrics  
 > **Design System:** Stitch Obsidian Dark (`#12131a`) / Institutional Light (`#F2F2F7`)  
-> **Verification Status:** 21/21 Expo Doctor Checks Passed • 36/36 Unit Tests Passed • 0 TypeScript Errors  
+> **Verification Status:** 21/21 Expo Doctor Checks Passed • 42/42 Unit Tests Passed (verified 2026-09-25) • 0 TypeScript Errors  
 
 ---
 
@@ -23,6 +23,21 @@
 10. [Zustand State Store & Background Sync](#10-zustand-state-store--background-sync)
 11. [Testing & Health Check Guide](#11-testing--health-check-guide)
 12. [Production Roadmap & Next Milestones](#12-production-roadmap--next-milestones)
+13. [Production Readiness Checklist](#13-production-readiness-checklist-whats-left-for-app-store--play-store)
+14. [Android APK Build & Testing](#14-local-production-android-apk-build--testing-guide)
+15. [Authentic MTProto & No Mock Fallbacks](#15-authentic-mtproto-connection--elimination-of-mock-fallbacks)
+16. [Cross-Platform Modals](#16-cross-platform-android-modals--elimination-of-stubs)
+17. [Background Sync & Encryption Engine](#17-authentic-background-sync--aes-256-gcm-encryption-engine)
+18. [Decrypted Document Preview](#18-in-memory-decrypted-document-preview-engine)
+19. [Hermes RNG Polyfill](#19-hermes-cryptographic-rng-polyfill-cryptogetrandomvalues)
+20. [MTProto Upload & Peer Resolution](#20-resilient-telegram-mtproto-file-upload--peer-entity-resolution-engine)
+21. [FileSystem SDK 57 Migration](#21-expo-filesystem-sdk-57-legacy-migration--zero-failure-dual-fallback-file-ingestion)
+22. [Hooks Compliance Fix](#22-react-rules-of-hooks-compliance-in-fullscreenpreviewmodal)
+23. [UI Simplification & Jargon Removal](#23-ui-simplification-jargon-removal--compact-responsive-home-layout)
+24. [Search Engine Overhaul](#24-complete-search-engine-overhaul-category-filters-history-sorting--file-actions)
+25. [UI Audit & Interactive Actions](#25-comprehensive-ui-element-audit-jargon-removal--interactive-actions)
+26. [All Files Page Overhaul](#26-all-files-page-complete-styling--hierarchy-overhaul)
+27. [Zero-OOM Streaming Upload Engine](#27-streaming-zero-oom-mtproto-upload-engine-for-large-files--apks)
 
 ---
 
@@ -257,7 +272,7 @@ Implemented in [`store/useVaultStore.ts`](file:///C:/Andy%20projects/teleStore/s
 ## 11. Testing & Health Check Guide
 
 ```bash
-# 1. Run Unit Tests (36 tests)
+# 1. Run Unit Tests (42 tests)
 npm run test
 # Tests: LRU Cache Manager, Chunking Engine, Countries & India (+91), AES-256-GCM, 12-Word Mnemonic, DC4 Config, MTProto Routing, Stitch Tokens
 
@@ -422,7 +437,7 @@ adb install -r "C:\Andy projects\teleStore\android\app\build\outputs\apk\release
 
 ---
 
-## 14. Authentic MTProto Connection & Elimination of Mock Fallbacks
+## 15. Authentic MTProto Connection & Elimination of Mock Fallbacks
 
 ### Strict Authentication Integrity
 - **Removed Simulated Mockups:** All fallback catch blocks in `MTProtoClient` that generated dummy users, simulated channel IDs, or fake session hashes have been completely removed.
@@ -433,7 +448,7 @@ adb install -r "C:\Andy projects\teleStore\android\app\build\outputs\apk\release
 
 ---
 
-## 15. Cross-Platform Android Modals & Elimination of Stubs
+## 16. Cross-Platform Android Modals & Elimination of Stubs
 
 ### Native React Native Dialog Replacements
 - **Folder Creation (`CreateFolderModal`):** Replaced iOS-only `Alert.prompt` with a custom zero-knowledge directory creator modal with keyboard management and focus handling.
@@ -443,7 +458,7 @@ adb install -r "C:\Andy projects\teleStore\android\app\build\outputs\apk\release
 
 ---
 
-## 16. Authentic Background Sync & AES-256-GCM Encryption Engine
+## 17. Authentic Background Sync & AES-256-GCM Encryption Engine
 
 ### End-to-End Cryptographic Upload Pipeline
 1. **Local Binary Ingestion:** File bytes are read asynchronously from the device cache using `expo-file-system` into high-performance `Buffer` instances.
@@ -456,7 +471,7 @@ adb install -r "C:\Andy projects\teleStore\android\app\build\outputs\apk\release
 
 ---
 
-## 17. In-Memory Decrypted Document Preview Engine
+## 18. In-Memory Decrypted Document Preview Engine
 
 ### Real Content Rendering
 - Replaced static placeholder JSON in `FullScreenPreviewModal.tsx` with live stream decryption.
@@ -465,7 +480,7 @@ adb install -r "C:\Andy projects\teleStore\android\app\build\outputs\apk\release
 
 ---
 
-## 18. Hermes Cryptographic RNG Polyfill (`crypto.getRandomValues`)
+## 19. Hermes Cryptographic RNG Polyfill (`crypto.getRandomValues`)
 
 ### The Login Crash Issue
 When users entered their mobile phone number and tapped **Continue** on the login screen, the application threw the following critical error:
@@ -503,7 +518,7 @@ telegram sign in error secure random number generation is not supported by brows
 
 ---
 
-## 19. Resilient Telegram MTProto File Upload & Peer Entity Resolution Engine
+## 20. Resilient Telegram MTProto File Upload & Peer Entity Resolution Engine
 
 ### 19.1 Background & Root Cause
 When uploading files or media into the user's encrypted Telegram vault:
@@ -530,7 +545,7 @@ When uploading files or media into the user's encrypted Telegram vault:
 
 ---
 
-## 20. Expo FileSystem SDK 57 Legacy Migration & Zero-Failure Dual-Fallback File Ingestion
+## 21. Expo FileSystem SDK 57 Legacy Migration & Zero-Failure Dual-Fallback File Ingestion
 
 ### 20.1 Background & Root Cause
 In Expo SDK 57 (`expo-file-system@57.0.7`), Expo redesigned the filesystem architecture around the new `File` and `Directory` object classes. Legacy procedural methods (`readAsStringAsync`, `writeAsStringAsync`, `deleteAsync`, `getInfoAsync`) were intentionally stubbed in the root package to throw a runtime exception:
@@ -554,7 +569,7 @@ When a user selected any media, photo, or document to upload, `BackgroundSyncMan
 
 ---
 
-## 21. React Rules of Hooks Compliance in FullScreenPreviewModal
+## 22. React Rules of Hooks Compliance in FullScreenPreviewModal
 
 ### 21.1 Background & Root Cause
 In React, hook execution order must remain completely identical across every render cycle. In `FullScreenPreviewModal.tsx`, an early return was positioned before `useEffect`:
@@ -581,7 +596,7 @@ When `FileDetailsScreen` (`app/file/[fileId].tsx`) mounted, `file` was initially
 
 ---
 
-## 22. UI Simplification, Jargon Removal & Compact Responsive Home Layout
+## 23. UI Simplification, Jargon Removal & Compact Responsive Home Layout
 
 ### 22.1 Overview & Motivation
 To improve user experience and eliminate intimidating cryptographic and network engineering jargon, the user interface was overhauled with plain, reliable, and user-friendly language. In addition, the home screen was restructured into a compact, responsive dashboard that adapts across all Android device form factors (smartphones, foldables, and tablets).
@@ -617,7 +632,7 @@ To improve user experience and eliminate intimidating cryptographic and network 
 
 ---
 
-## 23. Complete Search Engine Overhaul (Category Filters, History, Sorting & File Actions)
+## 24. Complete Search Engine Overhaul (Category Filters, History, Sorting & File Actions)
 
 ### 23.1 Root Causes of Previous Search Failures
 1. **Category Navigation Deadlock:** Navigating to Search by tapping any Category on the Home screen ("Documents", "Photos & Videos", "Audio", "Archives") resulted in an empty screen. The search handler (`executeSearch`) had an early return `if (!query.trim()) return;`, failing to query files when a category filter was selected without typing a keyword.
@@ -647,7 +662,7 @@ To improve user experience and eliminate intimidating cryptographic and network 
 
 ---
 
-## 24. Comprehensive UI Element Audit, Jargon Removal & Interactive Actions
+## 25. Comprehensive UI Element Audit, Jargon Removal & Interactive Actions
 
 ### 24.1 Objectives
 1. **Zero Dead UI Elements:** Audit every screen and component across CloudNest. Ensure all buttons, toggles, icons, and menus have real interactive handlers, state backing, and persistent effects.
@@ -734,7 +749,7 @@ To improve user experience and eliminate intimidating cryptographic and network 
 
 ---
 
-## 25. All Files Page Complete Styling & Hierarchy Overhaul
+## 26. All Files Page Complete Styling & Hierarchy Overhaul
 
 ### 25.1 Objectives & Challenges
 1. **Empty / Incomplete Root Querying:** Previously, visiting the "All Files" page (`/folder/root`) queried `WHERE folder_id IS NULL`, causing any files placed inside folders to be omitted from the "All Files" list.
@@ -798,7 +813,7 @@ To improve user experience and eliminate intimidating cryptographic and network 
 
 ---
 
-## 26. Streaming Zero-OOM MTProto Upload Engine for Large Files & APKs
+## 27. Streaming Zero-OOM MTProto Upload Engine for Large Files & APKs
 
 ### 26.1 Background & Root Cause Analysis
 
