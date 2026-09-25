@@ -1,5 +1,5 @@
 // services/sync/backgroundSync.ts
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Buffer } from 'buffer';
 import { useVaultStore } from '../../store/useVaultStore';
 import { MTProtoClient } from '../telegram/mtprotoClient';
@@ -64,11 +64,31 @@ class BackgroundSyncManager {
       store.updateQueueItemProgress(nextItem.id, 0.1, 1, 'Reading file…');
       let rawBase64 = '';
       try {
-        rawBase64 = await FileSystem.readAsStringAsync(nextItem.filePath, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
+        if (FileSystem && typeof FileSystem.readAsStringAsync === 'function') {
+          rawBase64 = await FileSystem.readAsStringAsync(nextItem.filePath, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+        } else {
+          throw new Error('FileSystem.readAsStringAsync not available');
+        }
       } catch (readErr: any) {
-        throw new Error(`Failed to read file: ${readErr?.message || readErr}`);
+        // Resilient fallback for content:// or non-standard URIs using fetch & FileReader
+        try {
+          const resp = await fetch(nextItem.filePath);
+          const blob = await resp.blob();
+          rawBase64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const res = reader.result as string;
+              const b64 = res.includes(',') ? res.split(',')[1] : res;
+              resolve(b64);
+            };
+            reader.onerror = (e) => reject(e);
+            reader.readAsDataURL(blob);
+          });
+        } catch (fetchErr: any) {
+          throw new Error(`Failed to read file: ${readErr?.message || fetchErr?.message || readErr}`);
+        }
       }
 
       const rawBuffer = Buffer.from(rawBase64, 'base64');

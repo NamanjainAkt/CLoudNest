@@ -4,8 +4,12 @@ import { encryptBuffer, decryptBuffer } from '../crypto/cipher';
 // Safe resolution across Node.js unit tests and React Native runtime
 let FileSystem: any = null;
 try {
-  FileSystem = require('expo-file-system');
-} catch {}
+  FileSystem = require('expo-file-system/legacy');
+} catch {
+  try {
+    FileSystem = require('expo-file-system');
+  } catch {}
+}
 
 export const CHUNK_SIZE_BYTES = 1024 * 1024; // 1 MB per chunk part
 

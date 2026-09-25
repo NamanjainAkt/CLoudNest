@@ -14,8 +14,12 @@ try {
 } catch {}
 
 try {
-  FileSystem = require('expo-file-system');
-} catch {}
+  FileSystem = require('expo-file-system/legacy');
+} catch {
+  try {
+    FileSystem = require('expo-file-system');
+  } catch {}
+}
 
 const CACHE_LIMIT_KEY = 'cloudnest_max_cache_bytes';
 export const DEFAULT_MAX_CACHE_BYTES = 1024 * 1024 * 1024; // 1 GB default limit

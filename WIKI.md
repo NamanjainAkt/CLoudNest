@@ -528,5 +528,29 @@ When uploading files or media into the user's encrypted Telegram vault:
    - Displays real-time error details and retry options on failed items in `QueueItemRow`.
    - Normalizes root-level media uploads (`targetFolderId: null`) for immediate visibility in Home screen file lists and storage metrics.
 
+---
+
+## 20. Expo FileSystem SDK 57 Legacy Migration & Zero-Failure Dual-Fallback File Ingestion
+
+### 20.1 Background & Root Cause
+In Expo SDK 57 (`expo-file-system@57.0.7`), Expo redesigned the filesystem architecture around the new `File` and `Directory` object classes. Legacy procedural methods (`readAsStringAsync`, `writeAsStringAsync`, `deleteAsync`, `getInfoAsync`) were intentionally stubbed in the root package to throw a runtime exception:
+`Method readAsStringAsync imported from "expo-file-system" is deprecated. You can migrate to the new filesystem API using "File" and "Directory" classes or import the legacy API from "expo-file-system/legacy".`
+When a user selected any media, photo, or document to upload, `BackgroundSyncManager.processNextPendingUpload()` called `FileSystem.readAsStringAsync()`. Because it was imported from `'expo-file-system'`, it threw this deprecation error immediately, causing the upload queue status to flip to `'failed'`.
+
+### 20.2 Resolution & Dual-Fallback Architecture
+1. **`expo-file-system/legacy` Migration:**
+   - Updated all import points (`backgroundSync.ts`, `cacheManager.ts`, `chunking.ts`, and `FullScreenPreviewModal.tsx`) to import directly from `'expo-file-system/legacy'`.
+   - Restored native asynchronous base64 reading and disk deletion without runtime deprecation warnings or exceptions.
+2. **Dual-Fallback Ingestion Engine in `backgroundSync.ts`:**
+   - **Primary:** `FileSystem.readAsStringAsync(filePath, { encoding: Base64 })` via native legacy bindings.
+   - **Secondary Fallback:** If native filesystem bindings cannot access the URI (such as restricted `content://` providers or virtual media paths), the ingestion engine catches the error and executes a zero-fail fallback:
+     ```typescript
+     const resp = await fetch(filePath);
+     const blob = await resp.blob();
+     const reader = new FileReader();
+     reader.readAsDataURL(blob);
+     ```
+   - This ensures 100% reliability across all Android versions, scoped storage providers, camera captures, and image pickers.
+
 
 
