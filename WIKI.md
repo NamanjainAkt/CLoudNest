@@ -784,3 +784,14 @@ To improve user experience and eliminate intimidating cryptographic and network 
   - **Layout Mode Toggle:** Seamless switching between Grid View and List View.
   - **Quick Filter:** One-tap `Favorites Only` checkbox toggle.
   - Fully accessible from both the header action icon and the interactive subheader status strip.
+
+### 25.5 Visual Hierarchy & Layout Polish (Eliminating Vertical Voids & Repetitive Headers)
+- **Eliminated ScrollView Flex Expansion Bug:** Resolved an issue where React Native's `<ScrollView horizontal>` inside `BreadcrumbBar.tsx` defaulted to `flex: 1`, creating an enormous empty void in the upper viewport. Applied explicit `style={{ flexGrow: 0 }}`.
+- **Removed Redundant Root Breadcrumbs:** Breadcrumbs (`Vault > All Files`) are now hidden when viewing the root "All Files" screen where the page header already identifies the directory, eliminating triple-redundant title displays. Breadcrumbs are strictly rendered when inside subfolders.
+- **Slim Integrated Sub-Header:** Replaced the heavy boxed "telemetry widget card" with a refined, 32px single-line bar showing matching item count (`1 item • Encrypted Vault`) and a compact interactive sort pill button (`[ Newest ▾ ]`).
+- **Enhanced `FileListItem.tsx`:**
+  - Integrated dynamic human-readable file sizing via `CacheManager.formatBytes()`.
+  - Added support for local image thumbnail rendering with graceful fallback to category iconography.
+  - Added gold favorite star badges for favorited files.
+  - Removed duplicate shield boxes on row items to declutter the right-hand action column.
+- **Enhanced Grid Cards:** Now renders local image thumbnails and refined metadata rows for photos, videos, audio, and documents.

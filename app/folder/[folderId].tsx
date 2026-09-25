@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   ScrollView,
   useWindowDimensions,
+  Image as RNImage,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -49,6 +50,7 @@ import { CustomConfirmDialog } from '../../components/common/CustomConfirmDialog
 import { FileDao, FolderDao } from '../../services/db/dbClient';
 import { FileRecord, FolderRecord } from '../../services/types/models';
 import { useVaultStore } from '../../store/useVaultStore';
+import { CacheManager } from '../../services/storage/cacheManager';
 
 export default function FolderBrowserScreen() {
   const { colors, typography, radii } = useTheme();
@@ -255,12 +257,7 @@ export default function FolderBrowserScreen() {
   });
 
   const totalSizeBytes = files.reduce((acc, curr) => acc + curr.size, 0);
-  const totalSizeFormatted =
-    totalSizeBytes < 1024
-      ? `${totalSizeBytes} B`
-      : totalSizeBytes < 1024 * 1024
-      ? `${(totalSizeBytes / 1024).toFixed(1)} KB`
-      : `${(totalSizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+  const totalSizeFormatted = CacheManager.formatBytes(totalSizeBytes);
 
   const pageTitle = folder ? folder.name : 'All Files';
 
@@ -406,71 +403,31 @@ export default function FolderBrowserScreen() {
       </View>
 
       <View style={styles.mainContainer}>
-        {/* Interactive Breadcrumb Bar */}
-        <BreadcrumbBar
-          items={
-            folder
-              ? [
-                  { id: 'root', label: 'All Files' },
-                  { id: folder.id, label: folder.name },
-                ]
-              : [{ id: 'root', label: 'All Files' }]
-          }
-          onSelect={(item) => {
-            if (item.id === null) {
-              router.replace('/(tabs)');
-            } else if (item.id === 'root') {
-              if (folderId !== null) {
-                router.push('/folder/root' as any);
-              }
-            }
-          }}
-        />
-
-        {/* Status Strip & Sort Indicator */}
-        <View
-          style={[
-            styles.telemetryStrip,
-            {
-              backgroundColor: colors.surfaceContainerLow,
-              borderColor: colors.borderSubtle,
-              borderRadius: radii.default,
-            },
-          ]}
-        >
-          <View style={styles.telemetryTop}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <ShieldCheck size={16} color={colors.primary} style={{ marginRight: 6 }} />
-              <Text style={[typography.bodyMd, { color: colors.onSurface, fontWeight: '600', fontSize: 13 }]}>
-                {pageTitle}
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              onPress={() => setSortModalVisible(true)}
-              style={[styles.sortBadge, { backgroundColor: colors.surfaceContainerHigh }]}
-              activeOpacity={0.7}
-            >
-              <Text style={[typography.monoSm, { color: colors.primary, fontSize: 11, fontWeight: '600' }]}>
-                {getSortLabel(sortMode)}
-              </Text>
-              <ChevronDown size={12} color={colors.primary} style={{ marginLeft: 3 }} />
-            </TouchableOpacity>
+        {/* Breadcrumb Bar: ONLY rendered when inside a folder to avoid redundancy */}
+        {folder && (
+          <View style={styles.breadcrumbWrapper}>
+            <BreadcrumbBar
+              items={[
+                { id: 'root', label: 'All Files' },
+                { id: folder.id, label: folder.name },
+              ]}
+              onSelect={(item) => {
+                if (item.id === null) {
+                  router.replace('/(tabs)');
+                } else if (item.id === 'root') {
+                  router.push('/folder/root' as any);
+                }
+              }}
+            />
           </View>
-
-          <View style={styles.telemetryBottom}>
-            <View style={[styles.pulseDot, { backgroundColor: colors.secondary }]} />
-            <Text style={[typography.bodySm, { color: colors.onSurfaceVariant, fontSize: 11 }]}>
-              Protected with End-to-End Encryption • Synced to Cloud
-            </Text>
-          </View>
-        </View>
+        )}
 
         {/* Horizontal Category Filter Chips */}
         <View style={styles.filtersWrapper}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
+            style={{ flexGrow: 0 }}
             contentContainerStyle={styles.filtersScroll}
           >
             <FilterChip
@@ -508,6 +465,45 @@ export default function FolderBrowserScreen() {
           </ScrollView>
         </View>
 
+        {/* Sleek Sub-Header Summary Bar */}
+        <View style={styles.subHeaderBar}>
+          <View style={styles.subHeaderLeft}>
+            <Text style={[typography.bodySm, { color: colors.onSurfaceVariant, fontSize: 12, fontWeight: '500' }]}>
+              {filteredFiles.length} {filteredFiles.length === 1 ? 'item' : 'items'}
+            </Text>
+            {isAllFiles && (
+              <>
+                <Text style={[styles.dotSeparator, { color: colors.outlineVariant }]}>•</Text>
+                <View style={styles.secureTag}>
+                  <ShieldCheck size={12} color={colors.primary} style={{ marginRight: 3 }} />
+                  <Text style={[typography.monoSm, { color: colors.primary, fontSize: 11, fontWeight: '600' }]}>
+                    Encrypted Vault
+                  </Text>
+                </View>
+              </>
+            )}
+          </View>
+
+          <TouchableOpacity
+            onPress={() => setSortModalVisible(true)}
+            style={[
+              styles.sortPillBtn,
+              {
+                backgroundColor: colors.surfaceContainerHigh,
+                borderColor: colors.borderSubtle,
+              },
+            ]}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Sort options"
+          >
+            <Text style={[typography.monoSm, { color: colors.primary, fontSize: 11, fontWeight: '600' }]}>
+              {getSortLabel(sortMode)}
+            </Text>
+            <ChevronDown size={12} color={colors.primary} style={{ marginLeft: 3 }} />
+          </TouchableOpacity>
+        </View>
+
         {/* File List / Grid */}
         {(() => {
           const sortedFiles = [...filteredFiles].sort((a, b) => {
@@ -526,7 +522,7 @@ export default function FolderBrowserScreen() {
               columnWrapperStyle={isGridView ? { gap: cardGap } : undefined}
               data={sortedFiles}
               keyExtractor={(item) => item.id}
-              contentContainerStyle={{ paddingBottom: 110 }}
+              contentContainerStyle={{ paddingBottom: 110, paddingTop: 2 }}
               showsVerticalScrollIndicator={false}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
@@ -558,7 +554,8 @@ export default function FolderBrowserScreen() {
               renderItem={({ item }) => {
                 if (isGridView) {
                   const { icon, bg } = getGridFileIcon(item.extension);
-                  const sizeMB = (item.size / (1024 * 1024)).toFixed(1);
+                  const isImage = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(item.extension.toLowerCase());
+                  const formattedSize = CacheManager.formatBytes(item.size);
                   const statusLabel = item.telegramMessageId ? 'Synced' : 'Saved';
 
                   return (
@@ -577,10 +574,18 @@ export default function FolderBrowserScreen() {
                     >
                       <View style={styles.gridCardTop}>
                         <View style={[styles.gridIconBox, { backgroundColor: bg }]}>
-                          {icon}
+                          {isImage && item.localCachePath ? (
+                            <RNImage
+                              source={{ uri: item.localCachePath }}
+                              style={styles.gridThumbnail}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            icon
+                          )}
                         </View>
                         <View style={styles.gridTopActions}>
-                          {item.isFavorite && (
+                          {Boolean(item.isFavorite) && (
                             <Star size={14} color={colors.tertiary} fill={colors.tertiary} style={{ marginRight: 4 }} />
                           )}
                           <TouchableOpacity
@@ -605,12 +610,17 @@ export default function FolderBrowserScreen() {
                         </Text>
                         <View style={styles.gridMetaRow}>
                           <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 11 }]}>
-                            {sizeMB} MB
+                            {formattedSize}
                           </Text>
-                          <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, marginHorizontal: 4 }]}>
+                          <Text style={[typography.monoSm, { color: colors.outlineVariant, marginHorizontal: 4 }]}>
                             •
                           </Text>
-                          <Text style={[typography.monoSm, { color: colors.primary, fontSize: 11 }]}>
+                          <Text
+                            style={[
+                              typography.monoSm,
+                              { color: item.telegramMessageId ? colors.primary : colors.onSurfaceVariant, fontSize: 11 },
+                            ]}
+                          >
                             {statusLabel}
                           </Text>
                         </View>
@@ -719,7 +729,7 @@ export default function FolderBrowserScreen() {
                   {selectedFile.name}
                 </Text>
                 <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 11, marginTop: 2 }]}>
-                  {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB • {selectedFile.extension.toUpperCase()}
+                  {CacheManager.formatBytes(selectedFile.size)} • {selectedFile.extension.toUpperCase()}
                 </Text>
               </View>
             </View>
@@ -858,44 +868,46 @@ const styles = StyleSheet.create({
   mainContainer: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 4,
+    paddingTop: 8,
   },
-  telemetryStrip: {
-    padding: 12,
-    marginVertical: 8,
-    borderWidth: 1,
-  },
-  telemetryTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  sortBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  telemetryBottom: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 6,
-  },
-  pulseDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 6,
+  breadcrumbWrapper: {
+    marginBottom: 8,
   },
   filtersWrapper: {
-    marginVertical: 4,
     marginBottom: 8,
   },
   filtersScroll: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  subHeaderBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    paddingHorizontal: 2,
+    marginBottom: 6,
+  },
+  subHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dotSeparator: {
+    marginHorizontal: 6,
+    fontSize: 10,
+  },
+  secureTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sortPillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
   },
   emptyContainer: {
     alignItems: 'center',
@@ -948,11 +960,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   gridIconBox: {
-    width: 38,
-    height: 38,
+    width: 42,
+    height: 42,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  gridThumbnail: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 10,
   },
   gridTopActions: {
     flexDirection: 'row',
@@ -962,7 +980,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   gridCardBody: {
-    marginTop: 10,
+    marginTop: 8,
   },
   gridMetaRow: {
     flexDirection: 'row',

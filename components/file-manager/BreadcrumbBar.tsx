@@ -21,6 +21,7 @@ export const BreadcrumbBar: React.FC<BreadcrumbBarProps> = ({ items, onSelect })
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
+      style={{ flexGrow: 0 }}
       contentContainerStyle={styles.container}
     >
       <TouchableOpacity
