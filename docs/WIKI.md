@@ -762,8 +762,25 @@ To improve user experience and eliminate intimidating cryptographic and network 
 6. **Polished Empty State:**
    - Implemented an illustrative empty state with soft halo icon, descriptive guidance, and a direct "Upload File" action button.
 
+### 25.3 Custom In-App Confirmation Dialogs (`CustomConfirmDialog.tsx`)
+- **Zero Native `Alert.alert` Calls:** Replaced all crude native OS alerts with a fully themed, dark/light aware in-app modal (`components/common/CustomConfirmDialog.tsx`).
+- **Features & UX:**
+  - Distinct iconography per action intent (`trash`, `alert-triangle`, `info`, `help-circle`).
+  - Clear heading and explanatory description without system jargon.
+  - Secondary "Cancel" action with safe dismiss.
+  - Primary / Destructive button with integrated `ActivityIndicator` loading state preventing duplicate taps during async deletion or modification.
+  - Full backdrop blur simulation and tap-outside handling.
 
-
-
-
-
+### 25.4 Comprehensive Sorting & Display Preferences (`SortOptionsModal.tsx`)
+- **Dedicated Filter & Sort Sheet (`components/file-manager/SortOptionsModal.tsx`):**
+  - Replaced crude inline toggles with a bottom sheet modal.
+  - **6 Sorting Modes:**
+    - Newest First (`date_desc`)
+    - Oldest First (`date_asc`)
+    - Name (A to Z) (`name_asc`)
+    - Name (Z to A) (`name_desc`)
+    - Largest Size (`size_desc`)
+    - Smallest Size (`size_asc`)
+  - **Layout Mode Toggle:** Seamless switching between Grid View and List View.
+  - **Quick Filter:** One-tap `Favorites Only` checkbox toggle.
+  - Fully accessible from both the header action icon and the interactive subheader status strip.

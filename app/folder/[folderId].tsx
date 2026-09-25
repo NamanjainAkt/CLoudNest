@@ -6,7 +6,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Alert,
   ScrollView,
   useWindowDimensions,
 } from 'react-native';
@@ -33,6 +32,7 @@ import {
   File,
   FolderOpen,
   ShieldCheck,
+  ChevronDown,
 } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -44,6 +44,8 @@ import { UploadBottomSheet } from '../../components/file-manager/UploadBottomShe
 import { CreateFolderModal } from '../../components/file-manager/CreateFolderModal';
 import { RenameFileModal } from '../../components/file-manager/RenameFileModal';
 import { MoveFileModal } from '../../components/file-manager/MoveFileModal';
+import { SortOptionsModal, SortMode } from '../../components/file-manager/SortOptionsModal';
+import { CustomConfirmDialog } from '../../components/common/CustomConfirmDialog';
 import { FileDao, FolderDao } from '../../services/db/dbClient';
 import { FileRecord, FolderRecord } from '../../services/types/models';
 import { useVaultStore } from '../../store/useVaultStore';
@@ -67,14 +69,32 @@ export default function FolderBrowserScreen() {
   const [folder, setFolder] = useState<FolderRecord | null>(null);
   const [files, setFiles] = useState<FileRecord[]>([]);
   const [filter, setFilter] = useState<string>('all');
-  const [sortMode, setSortMode] = useState<'date_desc' | 'name_asc' | 'size_desc'>('date_desc');
+  const [sortMode, setSortMode] = useState<SortMode>('date_desc');
+  const [favoritesOnly, setFavoritesOnly] = useState<boolean>(false);
   const [isGridView, setIsGridView] = useState<boolean>(false);
   const [sheetVisible, setSheetVisible] = useState<boolean>(false);
   const [folderModalVisible, setFolderModalVisible] = useState<boolean>(false);
+  const [sortModalVisible, setSortModalVisible] = useState<boolean>(false);
   const [selectedFile, setSelectedFile] = useState<FileRecord | null>(null);
   const [actionModalVisible, setActionModalVisible] = useState<boolean>(false);
   const [renameModalVisible, setRenameModalVisible] = useState<boolean>(false);
   const [moveModalVisible, setMoveModalVisible] = useState<boolean>(false);
+
+  // Custom Confirmation Dialog State
+  const [confirmDialogVisible, setConfirmDialogVisible] = useState<boolean>(false);
+  const [confirmDialogConfig, setConfirmDialogConfig] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    isDestructive: boolean;
+    onConfirm: () => Promise<void> | void;
+  }>({
+    title: '',
+    message: '',
+    confirmLabel: 'Confirm',
+    isDestructive: false,
+    onConfirm: () => {},
+  });
 
   const numColumns = isGridView ? (width >= 600 ? 3 : 2) : 1;
   const cardGap = 10;
@@ -178,6 +198,22 @@ export default function FolderBrowserScreen() {
     setFolderModalVisible(true);
   };
 
+  const promptDeleteFile = (file: FileRecord) => {
+    setActionModalVisible(false);
+    setConfirmDialogConfig({
+      title: 'Move to Trash?',
+      message: `Are you sure you want to move "${file.name}" to trash? You can restore it anytime.`,
+      confirmLabel: 'Move to Trash',
+      isDestructive: true,
+      onConfirm: async () => {
+        setConfirmDialogVisible(false);
+        await moveToTrash(file.id);
+        await loadFolderContent();
+      },
+    });
+    setConfirmDialogVisible(true);
+  };
+
   // Category counts
   const docsCount = files.filter((f) =>
     ['pdf', 'doc', 'docx', 'txt', 'key', 'xlsx', 'asc', 'csv', 'md', 'json', 'log'].includes(
@@ -202,6 +238,7 @@ export default function FolderBrowserScreen() {
   const favoritesCount = files.filter((f) => f.isFavorite).length;
 
   const filteredFiles = files.filter((f) => {
+    if (favoritesOnly && !f.isFavorite) return false;
     const ext = f.extension.toLowerCase();
     if (filter === 'all') return true;
     if (filter === 'docs')
@@ -226,12 +263,23 @@ export default function FolderBrowserScreen() {
       : `${(totalSizeBytes / (1024 * 1024)).toFixed(1)} MB`;
 
   const pageTitle = folder ? folder.name : 'All Files';
-  const sortLabel =
-    sortMode === 'name_asc'
-      ? 'A to Z'
-      : sortMode === 'size_desc'
-      ? 'Largest'
-      : 'Newest';
+
+  const getSortLabel = (mode: SortMode) => {
+    switch (mode) {
+      case 'date_asc':
+        return 'Oldest';
+      case 'name_asc':
+        return 'Name (A-Z)';
+      case 'name_desc':
+        return 'Name (Z-A)';
+      case 'size_desc':
+        return 'Largest';
+      case 'size_asc':
+        return 'Smallest';
+      default:
+        return 'Newest';
+    }
+  };
 
   const getGridFileIcon = (ext: string) => {
     const lower = ext.toLowerCase();
@@ -337,20 +385,21 @@ export default function FolderBrowserScreen() {
           <TouchableOpacity
             style={[
               styles.iconBtn,
-              { backgroundColor: sortMode !== 'date_desc' ? colors.primaryContainer + '35' : colors.surfaceContainerLow },
+              {
+                backgroundColor:
+                  sortMode !== 'date_desc' || favoritesOnly
+                    ? colors.primaryContainer + '35'
+                    : colors.surfaceContainerLow,
+              },
             ]}
-            onPress={() => {
-              if (sortMode === 'date_desc') setSortMode('name_asc');
-              else if (sortMode === 'name_asc') setSortMode('size_desc');
-              else setSortMode('date_desc');
-            }}
+            onPress={() => setSortModalVisible(true)}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel={`Sort files, currently ${sortLabel}`}
+            accessibilityLabel="Sort and View Options"
           >
             <SlidersHorizontal
               size={18}
-              color={sortMode !== 'date_desc' ? colors.primary : colors.onSurfaceVariant}
+              color={sortMode !== 'date_desc' || favoritesOnly ? colors.primary : colors.onSurfaceVariant}
             />
           </TouchableOpacity>
         </View>
@@ -378,7 +427,7 @@ export default function FolderBrowserScreen() {
           }}
         />
 
-        {/* Status Strip */}
+        {/* Status Strip & Sort Indicator */}
         <View
           style={[
             styles.telemetryStrip,
@@ -396,11 +445,17 @@ export default function FolderBrowserScreen() {
                 {pageTitle}
               </Text>
             </View>
-            <View style={[styles.sortBadge, { backgroundColor: colors.surfaceContainerHigh }]}>
+
+            <TouchableOpacity
+              onPress={() => setSortModalVisible(true)}
+              style={[styles.sortBadge, { backgroundColor: colors.surfaceContainerHigh }]}
+              activeOpacity={0.7}
+            >
               <Text style={[typography.monoSm, { color: colors.primary, fontSize: 11, fontWeight: '600' }]}>
-                {sortLabel}
+                {getSortLabel(sortMode)}
               </Text>
-            </View>
+              <ChevronDown size={12} color={colors.primary} style={{ marginLeft: 3 }} />
+            </TouchableOpacity>
           </View>
 
           <View style={styles.telemetryBottom}>
@@ -457,7 +512,10 @@ export default function FolderBrowserScreen() {
         {(() => {
           const sortedFiles = [...filteredFiles].sort((a, b) => {
             if (sortMode === 'name_asc') return a.name.localeCompare(b.name);
+            if (sortMode === 'name_desc') return b.name.localeCompare(a.name);
             if (sortMode === 'size_desc') return b.size - a.size;
+            if (sortMode === 'size_asc') return a.size - b.size;
+            if (sortMode === 'date_asc') return a.updatedAt - b.updatedAt;
             return b.updatedAt - a.updatedAt;
           });
 
@@ -615,7 +673,19 @@ export default function FolderBrowserScreen() {
         }}
       />
 
-      {/* File Action Modal */}
+      {/* Custom Sort & View Options Modal */}
+      <SortOptionsModal
+        visible={sortModalVisible}
+        onClose={() => setSortModalVisible(false)}
+        sortMode={sortMode}
+        onSelectSortMode={setSortMode}
+        isGridView={isGridView}
+        onToggleGridView={setIsGridView}
+        favoritesOnly={favoritesOnly}
+        onToggleFavoritesOnly={() => setFavoritesOnly((prev) => !prev)}
+      />
+
+      {/* File Action Sheet */}
       {actionModalVisible && selectedFile && (
         <View
           style={[
@@ -707,24 +777,7 @@ export default function FolderBrowserScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => {
-                setActionModalVisible(false);
-                Alert.alert(
-                  'Move to Trash',
-                  `Are you sure you want to move "${selectedFile.name}" to trash?`,
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Move to Trash',
-                      style: 'destructive',
-                      onPress: async () => {
-                        await moveToTrash(selectedFile.id);
-                        await loadFolderContent();
-                      },
-                    },
-                  ]
-                );
-              }}
+              onPress={() => promptDeleteFile(selectedFile)}
               style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14 }}
             >
               <Trash2 size={18} color={colors.error} style={{ marginRight: 12 }} />
@@ -759,6 +812,17 @@ export default function FolderBrowserScreen() {
           }}
         />
       )}
+
+      {/* Custom In-App Confirmation Dialog */}
+      <CustomConfirmDialog
+        visible={confirmDialogVisible}
+        title={confirmDialogConfig.title}
+        message={confirmDialogConfig.message}
+        confirmLabel={confirmDialogConfig.confirmLabel}
+        isDestructive={confirmDialogConfig.isDestructive}
+        onCancel={() => setConfirmDialogVisible(false)}
+        onConfirm={confirmDialogConfig.onConfirm}
+      />
     </View>
   );
 }
@@ -807,8 +871,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   sortBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: 999,
   },
   telemetryBottom: {
