@@ -72,6 +72,14 @@ export const FileDao = {
     return rows.map(mapDbFile);
   },
 
+  async getAllFiles(): Promise<FileRecord[]> {
+    const db = await getDb();
+    const rows = await db.getAllAsync<any>(
+      `SELECT * FROM files WHERE is_deleted = 0 ORDER BY updated_at DESC`
+    );
+    return rows.map(mapDbFile);
+  },
+
   async getFileById(fileId: string): Promise<FileRecord | null> {
     const db = await getDb();
     const row = await db.getFirstAsync<any>(

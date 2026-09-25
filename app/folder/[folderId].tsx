@@ -1,3 +1,4 @@
+// app/folder/[folderId].tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -6,15 +7,17 @@ import {
   FlatList,
   TouchableOpacity,
   Alert,
+  ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
   Search,
   LayoutGrid,
   List,
   SlidersHorizontal,
-  Lock,
   Plus,
   Star,
   Edit2,
@@ -23,6 +26,13 @@ import {
   Eye,
   MoreVertical,
   FileText,
+  Image as ImageIcon,
+  Film,
+  FileArchive,
+  Music,
+  File,
+  FolderOpen,
+  ShieldCheck,
 } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -41,7 +51,10 @@ import { useVaultStore } from '../../store/useVaultStore';
 export default function FolderBrowserScreen() {
   const { colors, typography, radii } = useTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const params = useLocalSearchParams<{ folderId: string }>();
+
   const addUploadQueueItem = useVaultStore((s) => s.addUploadQueueItem);
   const createFolder = useVaultStore((s) => s.createFolder);
   const toggleFavorite = useVaultStore((s) => s.toggleFavorite);
@@ -50,6 +63,7 @@ export default function FolderBrowserScreen() {
   const moveFile = useVaultStore((s) => s.moveFile);
 
   const folderId = params.folderId === 'root' ? null : params.folderId;
+  const isAllFiles = !folderId;
   const [folder, setFolder] = useState<FolderRecord | null>(null);
   const [files, setFiles] = useState<FileRecord[]>([]);
   const [filter, setFilter] = useState<string>('all');
@@ -62,16 +76,24 @@ export default function FolderBrowserScreen() {
   const [renameModalVisible, setRenameModalVisible] = useState<boolean>(false);
   const [moveModalVisible, setMoveModalVisible] = useState<boolean>(false);
 
+  const numColumns = isGridView ? (width >= 600 ? 3 : 2) : 1;
+  const cardGap = 10;
+  const gridCardWidth = (width - 32 - cardGap * (numColumns - 1)) / numColumns;
+
   const loadFolderContent = useCallback(async () => {
     try {
       if (folderId) {
         const f = await FolderDao.getFolderById(folderId);
         setFolder(f);
+        const fileList = await FileDao.getFilesInFolder(folderId);
+        setFiles(fileList);
+      } else {
+        setFolder(null);
+        const fileList = await FileDao.getAllFiles();
+        setFiles(fileList);
       }
-      const fileList = await FileDao.getFilesInFolder(folderId);
-      setFiles(fileList);
     } catch (err) {
-      console.error(err);
+      console.error('[FolderBrowser] Load error:', err);
     }
   }, [folderId]);
 
@@ -156,11 +178,42 @@ export default function FolderBrowserScreen() {
     setFolderModalVisible(true);
   };
 
+  // Category counts
+  const docsCount = files.filter((f) =>
+    ['pdf', 'doc', 'docx', 'txt', 'key', 'xlsx', 'asc', 'csv', 'md', 'json', 'log'].includes(
+      f.extension.toLowerCase()
+    )
+  ).length;
+
+  const mediaCount = files.filter((f) =>
+    ['jpg', 'jpeg', 'png', 'webp', 'gif', 'mov', 'mp4', 'm4v', 'svg', 'avi', 'mkv'].includes(
+      f.extension.toLowerCase()
+    )
+  ).length;
+
+  const archivesCount = files.filter((f) =>
+    ['zip', 'tar', 'gz', 'enc', '7z', 'rar', 'bz2'].includes(f.extension.toLowerCase())
+  ).length;
+
+  const audioCount = files.filter((f) =>
+    ['mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg'].includes(f.extension.toLowerCase())
+  ).length;
+
+  const favoritesCount = files.filter((f) => f.isFavorite).length;
+
   const filteredFiles = files.filter((f) => {
+    const ext = f.extension.toLowerCase();
     if (filter === 'all') return true;
-    if (filter === 'docs') return ['pdf', 'doc', 'docx', 'txt', 'key', 'xlsx'].includes(f.extension.toLowerCase());
-    if (filter === 'images') return ['jpg', 'jpeg', 'png', 'webp'].includes(f.extension.toLowerCase());
-    if (filter === 'encrypted') return f.isEncrypted;
+    if (filter === 'docs')
+      return ['pdf', 'doc', 'docx', 'txt', 'key', 'xlsx', 'asc', 'csv', 'md', 'json', 'log'].includes(ext);
+    if (filter === 'images')
+      return ['jpg', 'jpeg', 'png', 'webp', 'gif', 'mov', 'mp4', 'm4v', 'svg', 'avi', 'mkv'].includes(ext);
+    if (filter === 'archives')
+      return ['zip', 'tar', 'gz', 'enc', '7z', 'rar', 'bz2'].includes(ext);
+    if (filter === 'audio')
+      return ['mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg'].includes(ext);
+    if (filter === 'favorites')
+      return f.isFavorite;
     return true;
   });
 
@@ -172,11 +225,51 @@ export default function FolderBrowserScreen() {
       ? `${(totalSizeBytes / 1024).toFixed(1)} KB`
       : `${(totalSizeBytes / (1024 * 1024)).toFixed(1)} MB`;
 
-  const formattedModified = folder?.updatedAt
-    ? `Modified ${new Date(folder.updatedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}`
-    : files.length > 0
-    ? 'Modified Recently'
-    : 'Empty';
+  const pageTitle = folder ? folder.name : 'All Files';
+  const sortLabel =
+    sortMode === 'name_asc'
+      ? 'A to Z'
+      : sortMode === 'size_desc'
+      ? 'Largest'
+      : 'Newest';
+
+  const getGridFileIcon = (ext: string) => {
+    const lower = ext.toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg'].includes(lower)) {
+      return {
+        icon: <ImageIcon size={22} color={colors.primary} />,
+        bg: colors.primaryContainer + '25',
+      };
+    }
+    if (['mov', 'mp4', 'm4v', 'avi', 'mkv'].includes(lower)) {
+      return {
+        icon: <Film size={22} color={colors.secondary} />,
+        bg: colors.secondaryContainer + '25',
+      };
+    }
+    if (['zip', 'tar', 'gz', 'enc', '7z', 'rar', 'bz2'].includes(lower)) {
+      return {
+        icon: <FileArchive size={22} color={colors.tertiary} />,
+        bg: colors.tertiaryContainer + '30',
+      };
+    }
+    if (['mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg'].includes(lower)) {
+      return {
+        icon: <Music size={22} color={colors.secondary} />,
+        bg: colors.secondaryContainer + '25',
+      };
+    }
+    if (['pdf'].includes(lower)) {
+      return {
+        icon: <FileText size={22} color={colors.error} />,
+        bg: colors.errorContainer + '25',
+      };
+    }
+    return {
+      icon: <File size={22} color={colors.primary} />,
+      bg: colors.primaryContainer + '25',
+    };
+  };
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.surface }]}>
@@ -187,40 +280,55 @@ export default function FolderBrowserScreen() {
           {
             backgroundColor: colors.surface,
             borderBottomColor: colors.borderSubtle,
+            paddingTop: Math.max(insets.top, 14),
           },
         ]}
       >
         <TouchableOpacity
           onPress={() => router.back()}
-          style={styles.iconBtn}
+          style={[styles.iconBtn, { backgroundColor: colors.surfaceContainerLow }]}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
         >
           <ArrowLeft size={20} color={colors.onSurface} />
         </TouchableOpacity>
 
-        <Text
-          style={[typography.headlineSm, { color: colors.onSurface, flex: 1, marginLeft: 8 }]}
-          numberOfLines={1}
-        >
-          {folder?.name || 'All Files'}
-        </Text>
+        <View style={styles.headerTitleCol}>
+          <Text
+            style={[typography.headlineSm, { color: colors.onSurface, fontSize: 17, fontWeight: '700' }]}
+            numberOfLines={1}
+          >
+            {pageTitle}
+          </Text>
+          <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 11 }]}>
+            {files.length} {files.length === 1 ? 'file' : 'files'} • {totalSizeFormatted}
+          </Text>
+        </View>
 
         <View style={styles.headerActions}>
           <TouchableOpacity
             onPress={() => router.push('/(tabs)/search')}
-            style={styles.iconBtn}
+            style={[styles.iconBtn, { backgroundColor: colors.surfaceContainerLow }]}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Search Files"
           >
             <Search size={18} color={colors.onSurfaceVariant} />
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={() => setIsGridView((prev) => !prev)}
-            style={styles.iconBtn}
+            style={[
+              styles.iconBtn,
+              { backgroundColor: isGridView ? colors.primaryContainer + '35' : colors.surfaceContainerLow },
+            ]}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={isGridView ? 'Switch to list view' : 'Switch to grid view'}
           >
             {isGridView ? (
-              <List size={18} color={colors.onSurfaceVariant} />
+              <List size={18} color={colors.primary} />
             ) : (
               <LayoutGrid size={18} color={colors.onSurfaceVariant} />
             )}
@@ -229,7 +337,7 @@ export default function FolderBrowserScreen() {
           <TouchableOpacity
             style={[
               styles.iconBtn,
-              sortMode !== 'date_desc' && { backgroundColor: colors.primaryContainer + '30' },
+              { backgroundColor: sortMode !== 'date_desc' ? colors.primaryContainer + '35' : colors.surfaceContainerLow },
             ]}
             onPress={() => {
               if (sortMode === 'date_desc') setSortMode('name_asc');
@@ -237,6 +345,8 @@ export default function FolderBrowserScreen() {
               else setSortMode('date_desc');
             }}
             activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={`Sort files, currently ${sortLabel}`}
           >
             <SlidersHorizontal
               size={18}
@@ -249,10 +359,21 @@ export default function FolderBrowserScreen() {
       <View style={styles.mainContainer}>
         {/* Interactive Breadcrumb Bar */}
         <BreadcrumbBar
-          items={folder ? [{ id: folder.id, label: folder.name }] : []}
+          items={
+            folder
+              ? [
+                  { id: 'root', label: 'All Files' },
+                  { id: folder.id, label: folder.name },
+                ]
+              : [{ id: 'root', label: 'All Files' }]
+          }
           onSelect={(item) => {
             if (item.id === null) {
-              router.back();
+              router.replace('/(tabs)');
+            } else if (item.id === 'root') {
+              if (folderId !== null) {
+                router.push('/folder/root' as any);
+              }
             }
           }}
         />
@@ -262,53 +383,74 @@ export default function FolderBrowserScreen() {
           style={[
             styles.telemetryStrip,
             {
-              backgroundColor: colors.surfaceContainerLowest,
+              backgroundColor: colors.surfaceContainerLow,
+              borderColor: colors.borderSubtle,
               borderRadius: radii.default,
             },
           ]}
         >
           <View style={styles.telemetryTop}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Lock size={14} color={colors.primary} style={{ marginRight: 6 }} />
-              <Text style={[typography.monoSm, { color: colors.onSurface, fontWeight: '600' }]}>
-                {files.length} {files.length === 1 ? 'file' : 'files'} • {totalSizeFormatted}
+              <ShieldCheck size={16} color={colors.primary} style={{ marginRight: 6 }} />
+              <Text style={[typography.bodyMd, { color: colors.onSurface, fontWeight: '600', fontSize: 13 }]}>
+                {pageTitle}
               </Text>
             </View>
-            <Text style={[typography.monoSm, { color: colors.onSurfaceVariant }]}>
-              {sortMode === 'name_asc' ? 'Sorted A-Z' : sortMode === 'size_desc' ? 'Sorted by Size' : formattedModified}
-            </Text>
+            <View style={[styles.sortBadge, { backgroundColor: colors.surfaceContainerHigh }]}>
+              <Text style={[typography.monoSm, { color: colors.primary, fontSize: 11, fontWeight: '600' }]}>
+                {sortLabel}
+              </Text>
+            </View>
           </View>
 
           <View style={styles.telemetryBottom}>
-            <View style={[styles.pulseDot, { backgroundColor: colors.primary }]} />
+            <View style={[styles.pulseDot, { backgroundColor: colors.secondary }]} />
             <Text style={[typography.bodySm, { color: colors.onSurfaceVariant, fontSize: 11 }]}>
-              Protected with <Text style={{ color: colors.onSurface, fontWeight: '600' }}>End-to-End Encryption</Text> • Synced to Cloud
+              Protected with End-to-End Encryption • Synced to Cloud
             </Text>
           </View>
         </View>
 
-        {/* Filter Pills */}
-        <View style={styles.filtersRow}>
-          <FilterChip
-            label={`All (${files.length})`}
-            active={filter === 'all'}
-            onPress={() => setFilter('all')}
-          />
-          <FilterChip
-            label="Documents"
-            active={filter === 'docs'}
-            onPress={() => setFilter('docs')}
-          />
-          <FilterChip
-            label="Images"
-            active={filter === 'images'}
-            onPress={() => setFilter('images')}
-          />
-          <FilterChip
-            label="Encrypted"
-            active={filter === 'encrypted'}
-            onPress={() => setFilter('encrypted')}
-          />
+        {/* Horizontal Category Filter Chips */}
+        <View style={styles.filtersWrapper}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filtersScroll}
+          >
+            <FilterChip
+              label={`All (${files.length})`}
+              active={filter === 'all'}
+              onPress={() => setFilter('all')}
+            />
+            <FilterChip
+              label={`Docs (${docsCount})`}
+              active={filter === 'docs'}
+              onPress={() => setFilter('docs')}
+            />
+            <FilterChip
+              label={`Photos & Videos (${mediaCount})`}
+              active={filter === 'images'}
+              onPress={() => setFilter('images')}
+            />
+            <FilterChip
+              label={`Audio (${audioCount})`}
+              active={filter === 'audio'}
+              onPress={() => setFilter('audio')}
+            />
+            <FilterChip
+              label={`Archives (${archivesCount})`}
+              active={filter === 'archives'}
+              onPress={() => setFilter('archives')}
+            />
+            {favoritesCount > 0 && (
+              <FilterChip
+                label={`Starred (${favoritesCount})`}
+                active={filter === 'favorites'}
+                onPress={() => setFilter('favorites')}
+              />
+            )}
+          </ScrollView>
         </View>
 
         {/* File List / Grid */}
@@ -321,23 +463,46 @@ export default function FolderBrowserScreen() {
 
           return (
             <FlatList
-              key={isGridView ? 'grid' : 'list'}
-              numColumns={isGridView ? 2 : 1}
-              columnWrapperStyle={isGridView ? { justifyContent: 'space-between' } : undefined}
+              key={isGridView ? `grid-${numColumns}` : 'list'}
+              numColumns={numColumns}
+              columnWrapperStyle={isGridView ? { gap: cardGap } : undefined}
               data={sortedFiles}
               keyExtractor={(item) => item.id}
-              contentContainerStyle={{ paddingBottom: 100 }}
+              contentContainerStyle={{ paddingBottom: 110 }}
               showsVerticalScrollIndicator={false}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
-                  <Text style={[typography.bodyMd, { color: colors.onSurfaceVariant }]}>
-                    This folder is empty.
+                  <View style={[styles.emptyIconCircle, { backgroundColor: colors.surfaceContainerHigh }]}>
+                    <FolderOpen size={36} color={colors.primary} />
+                  </View>
+                  <Text style={[typography.headlineSm, { color: colors.onSurface, marginTop: 14, fontSize: 16, fontWeight: '600' }]}>
+                    {filter !== 'all' ? 'No Matching Files' : folder ? 'This Folder is Empty' : 'No Files in Vault'}
                   </Text>
+                  <Text style={[typography.bodySm, { color: colors.onSurfaceVariant, textAlign: 'center', marginTop: 6, maxWidth: 280, lineHeight: 18 }]}>
+                    {filter !== 'all'
+                      ? `No files found in the "${filter}" filter. Try selecting another category.`
+                      : 'Upload photos, videos, documents, or archives to store them securely in your cloud vault.'}
+                  </Text>
+                  {filter === 'all' && (
+                    <TouchableOpacity
+                      onPress={() => setSheetVisible(true)}
+                      style={[styles.emptyUploadBtn, { backgroundColor: colors.primary }]}
+                      activeOpacity={0.8}
+                    >
+                      <Plus size={16} color={colors.onPrimary} style={{ marginRight: 6 }} />
+                      <Text style={[typography.labelMd, { color: colors.onPrimary, fontWeight: '600' }]}>
+                        Upload File
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               }
               renderItem={({ item }) => {
                 if (isGridView) {
+                  const { icon, bg } = getGridFileIcon(item.extension);
                   const sizeMB = (item.size / (1024 * 1024)).toFixed(1);
+                  const statusLabel = item.telegramMessageId ? 'Synced' : 'Saved';
+
                   return (
                     <TouchableOpacity
                       activeOpacity={0.8}
@@ -345,6 +510,7 @@ export default function FolderBrowserScreen() {
                       style={[
                         styles.gridCard,
                         {
+                          width: gridCardWidth,
                           backgroundColor: colors.surfaceContainer,
                           borderColor: colors.borderSubtle,
                           borderRadius: radii.default,
@@ -352,26 +518,45 @@ export default function FolderBrowserScreen() {
                       ]}
                     >
                       <View style={styles.gridCardTop}>
-                        <FileText size={22} color={colors.primary} />
-                        <TouchableOpacity
-                          onPress={() => {
-                            setSelectedFile(item);
-                            setActionModalVisible(true);
-                          }}
-                          style={styles.gridMoreBtn}
-                        >
-                          <MoreVertical size={16} color={colors.onSurfaceVariant} />
-                        </TouchableOpacity>
+                        <View style={[styles.gridIconBox, { backgroundColor: bg }]}>
+                          {icon}
+                        </View>
+                        <View style={styles.gridTopActions}>
+                          {item.isFavorite && (
+                            <Star size={14} color={colors.tertiary} fill={colors.tertiary} style={{ marginRight: 4 }} />
+                          )}
+                          <TouchableOpacity
+                            onPress={() => {
+                              setSelectedFile(item);
+                              setActionModalVisible(true);
+                            }}
+                            style={styles.gridMoreBtn}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <MoreVertical size={16} color={colors.onSurfaceVariant} />
+                          </TouchableOpacity>
+                        </View>
                       </View>
-                      <Text
-                        style={[typography.bodyMd, { color: colors.onSurface, fontWeight: '500', fontSize: 13, marginTop: 8 }]}
-                        numberOfLines={1}
-                      >
-                        {item.name}
-                      </Text>
-                      <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 11, marginTop: 2 }]}>
-                        {sizeMB} MB
-                      </Text>
+
+                      <View style={styles.gridCardBody}>
+                        <Text
+                          style={[typography.bodyMd, { color: colors.onSurface, fontWeight: '600', fontSize: 13 }]}
+                          numberOfLines={1}
+                        >
+                          {item.name}
+                        </Text>
+                        <View style={styles.gridMetaRow}>
+                          <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 11 }]}>
+                            {sizeMB} MB
+                          </Text>
+                          <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, marginHorizontal: 4 }]}>
+                            •
+                          </Text>
+                          <Text style={[typography.monoSm, { color: colors.primary, fontSize: 11 }]}>
+                            {statusLabel}
+                          </Text>
+                        </View>
+                      </View>
                     </TouchableOpacity>
                   );
                 }
@@ -392,7 +577,7 @@ export default function FolderBrowserScreen() {
       </View>
 
       {/* Floating Action Button */}
-      <View style={styles.fabContainer}>
+      <View style={[styles.fabContainer, { bottom: Math.max(insets.bottom + 16, 24) }]}>
         <TouchableOpacity
           onPress={() => setSheetVisible(true)}
           style={[
@@ -403,6 +588,8 @@ export default function FolderBrowserScreen() {
             },
           ]}
           activeOpacity={0.9}
+          accessibilityRole="button"
+          accessibilityLabel="Upload File"
         >
           <Plus size={26} color={colors.onPrimaryContainer} />
         </TouchableOpacity>
@@ -447,14 +634,25 @@ export default function FolderBrowserScreen() {
               borderTopLeftRadius: 24,
               borderTopRightRadius: 24,
               padding: 20,
-              paddingBottom: 36,
+              paddingBottom: Math.max(insets.bottom + 20, 36),
               borderTopWidth: 1,
               borderColor: colors.borderSubtle,
             }}
           >
-            <Text style={[typography.headlineSm, { color: colors.onSurface, marginBottom: 16 }]}>
-              {selectedFile.name}
-            </Text>
+            {/* File Info Header in Sheet */}
+            <View style={styles.sheetFileHeader}>
+              <View style={[styles.sheetIconBox, { backgroundColor: getGridFileIcon(selectedFile.extension).bg }]}>
+                {getGridFileIcon(selectedFile.extension).icon}
+              </View>
+              <View style={styles.sheetFileTextCol}>
+                <Text style={[typography.headlineSm, { color: colors.onSurface, fontSize: 15, fontWeight: '600' }]} numberOfLines={1}>
+                  {selectedFile.name}
+                </Text>
+                <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 11, marginTop: 2 }]}>
+                  {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB • {selectedFile.extension.toUpperCase()}
+                </Text>
+              </View>
+            </View>
 
             <TouchableOpacity
               onPress={() => {
@@ -573,35 +771,45 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 48,
     paddingBottom: 12,
     borderBottomWidth: 1,
   },
   iconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitleCol: {
+    flex: 1,
+    marginLeft: 12,
     justifyContent: 'center',
   },
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
   },
   mainContainer: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 4,
   },
   telemetryStrip: {
     padding: 12,
-    marginVertical: 10,
+    marginVertical: 8,
+    borderWidth: 1,
   },
   telemetryTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  sortBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
   },
   telemetryBottom: {
     flexDirection: 'row',
@@ -614,26 +822,46 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     marginRight: 6,
   },
-  filtersRow: {
+  filtersWrapper: {
+    marginVertical: 4,
+    marginBottom: 8,
+  },
+  filtersScroll: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    gap: 6,
   },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 60,
+    paddingHorizontal: 20,
+  },
+  emptyIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  emptyUploadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 999,
+    marginTop: 16,
   },
   fabContainer: {
     position: 'absolute',
     right: 20,
-    bottom: 30,
     zIndex: 40,
   },
   fab: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
     shadowOffset: { width: 0, height: 4 },
@@ -642,18 +870,56 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   gridCard: {
-    width: '48.5%',
     padding: 12,
     borderWidth: 1,
     marginBottom: 10,
-    minHeight: 90,
+    minHeight: 110,
+    justifyContent: 'space-between',
   },
   gridCardTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  gridIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gridTopActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   gridMoreBtn: {
-    padding: 2,
+    padding: 4,
+  },
+  gridCardBody: {
+    marginTop: 10,
+  },
+  gridMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+  },
+  sheetFileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    marginBottom: 8,
+  },
+  sheetIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  sheetFileTextCol: {
+    flex: 1,
   },
 });

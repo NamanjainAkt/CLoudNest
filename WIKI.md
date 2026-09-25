@@ -732,3 +732,34 @@ To improve user experience and eliminate intimidating cryptographic and network 
     3. *Connecting to cloud storage* — Setting up private storage channel… (Active)
     4. *Finishing setup* — Preparing your offline file manager (Pending/Done)
 
+---
+
+## 25. All Files Page Complete Styling & Hierarchy Overhaul
+
+### 25.1 Objectives & Challenges
+1. **Empty / Incomplete Root Querying:** Previously, visiting the "All Files" page (`/folder/root`) queried `WHERE folder_id IS NULL`, causing any files placed inside folders to be omitted from the "All Files" list.
+2. **Missing Safe Area Offsets:** The top header had hardcoded `paddingTop: 48` which collided on various Android notch and status bar configurations.
+3. **Crude Empty State:** Empty folders rendered a bare text message without actions, icons, or upload capabilities.
+4. **Static Grid & List Views:** Grid cards rendered generic icons without differentiation for images, videos, audio, or archives, and filter chips did not scroll horizontally on compact viewports.
+
+### 25.2 Architecture & UI Refinements
+1. **Vault-Wide Querying (`FileDao.getAllFiles()` in `services/db/dbClient.ts`):**
+   - Added `getAllFiles()` method to retrieve all non-deleted files across all folders sorted by `updated_at DESC`.
+   - `FolderBrowserScreen` now displays the true complete inventory of files when navigated to `/folder/root` ("All Files"), while still scoping strictly to specific folders when given a folder UUID.
+2. **Adaptive Layout & Responsive Columns:**
+   - Integrated `useWindowDimensions()` and `useSafeAreaInsets()`.
+   - Dynamically calculates grid column counts (3 columns on tablets >= 600px, 2 columns on mobile) and sets pixel-perfect card widths with `gap: 10`.
+   - Replaced fixed top padding with `Math.max(insets.top, 14)` to cleanly support all Android camera punch-holes and status bar heights.
+3. **Rich Visual Grid Cards:**
+   - File cards in grid view now display contextual colored icon badges (e.g. photos get Image icons, videos get Film icons, audio gets Music icons, archives get Archive icons, PDFs get Text icons).
+   - Added favorite star indicators, clean file size, and cloud sync status badges (`Synced` vs `Saved`).
+4. **Horizontal Scrollable Category Filters:**
+   - Enclosed category filter chips in a smooth horizontal `ScrollView` with `showsHorizontalScrollIndicator={false}`.
+   - Dynamically calculates real-time counts for Docs, Photos & Videos, Audio, Archives, and Starred files.
+5. **Interactive Navigation & Breadcrumbs:**
+   - Breadcrumb navigation now clearly represents `Vault > All Files` or `Vault > All Files > Folder Name`.
+   - Tapping `Vault` navigates back to Home, while tapping `All Files` opens the complete root directory.
+6. **Polished Empty State:**
+   - Implemented an illustrative empty state with soft halo icon, descriptive guidance, and a direct "Upload File" action button.
+
+
