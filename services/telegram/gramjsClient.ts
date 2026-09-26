@@ -95,8 +95,6 @@ class GramJSClientService {
       this.connected = true;
       this.isConnecting = false;
 
-      // Force GramJS to route requests via authenticated primary socket rather than secondary exported senders
-      (this.client as any).getSender = () => Promise.resolve((this.client as any)._sender);
       return this.client;
     } catch (err) {
       this.isConnecting = false;
@@ -395,11 +393,10 @@ class GramJSClientService {
     const sha256 = crypto.createHash('sha256');
     const md5 = crypto.createHash('md5');
 
-    // Multi-worker part pipelining:
-    // Concurrency = 3 parallel parts over the MTProto socket.
-    // Sequential encryption & hashing sliding window kept < 2MB in memory (max 1 queued + 3 in flight).
-    const CONCURRENCY = Math.min(3, totalParts);
-    const MAX_QUEUE_BUFFER = 1;
+    // Concurrency = 4 parallel parts over multiple MTProto sockets.
+    // Sequential encryption & hashing sliding window kept < 5MB in memory (max 6 queued + 4 in flight).
+    const CONCURRENCY = Math.min(4, totalParts);
+    const MAX_QUEUE_BUFFER = 6;
 
     interface PreparedChunk {
       partIndex: number;
@@ -570,9 +567,12 @@ class GramJSClientService {
             throw new Error('UPLOAD_ABORTED');
           }
 
+          let sender: any;
           try {
+            sender = await (client as any).getSender(client.session.dcId);
+            
             if (isLarge) {
-              await client.invoke(
+              await sender.send(
                 new Api.upload.SaveBigFilePart({
                   fileId,
                   filePart: i,
@@ -581,7 +581,7 @@ class GramJSClientService {
                 })
               );
             } else {
-              await client.invoke(
+              await sender.send(
                 new Api.upload.SaveFilePart({
                   fileId,
                   filePart: i,
@@ -593,6 +593,11 @@ class GramJSClientService {
           } catch (uploadErr: any) {
             retries++;
             console.warn(`[GramJS] Part ${i + 1}/${totalParts} (worker ${workerId}) retry ${retries}:`, uploadErr);
+            if (sender && typeof sender.isConnected === 'function' && !sender.isConnected()) {
+              await new Promise((r) => setTimeout(r, 1000));
+              retries--; // don't count disconnect as a permanent failure attempt
+              continue;
+            }
             if (uploadErr?.errorMessage?.startsWith('FLOOD_WAIT_')) {
               const waitSec = parseInt(uploadErr.errorMessage.split('_')[2], 10) || 2;
               await new Promise((r) => setTimeout(r, waitSec * 1000));
