@@ -95,6 +95,12 @@ class GramJSClientService {
       this.connected = true;
       this.isConnecting = false;
 
+      // Route all MTProto requests through the primary authenticated sender.
+      // GramJS's default getSender() creates exported senders with a 30-second
+      // auto-disconnect timeout that causes hangs between uploads. The primary
+      // sender stays connected for the lifetime of the client.
+      (this.client as any).getSender = () => Promise.resolve((this.client as any)._sender);
+
       return this.client;
     } catch (err) {
       this.isConnecting = false;
@@ -393,10 +399,12 @@ class GramJSClientService {
     const sha256 = crypto.createHash('sha256');
     const md5 = crypto.createHash('md5');
 
-    // Concurrency = 4 parallel parts over multiple MTProto sockets.
-    // Sequential encryption & hashing sliding window kept < 5MB in memory (max 6 queued + 4 in flight).
+    // MTProto request pipelining: 4 concurrent invoke() calls overlap on the primary
+    // sender's TCP connection. The protocol doesn't require response-before-next-request,
+    // so concurrent invocations genuinely pipeline on the wire.
+    // Sequential encryption & hashing sliding window kept < 4MB in memory (max 4 queued + 4 in flight).
     const CONCURRENCY = Math.min(4, totalParts);
-    const MAX_QUEUE_BUFFER = 6;
+    const MAX_QUEUE_BUFFER = 4;
 
     interface PreparedChunk {
       partIndex: number;
@@ -561,18 +569,15 @@ class GramJSClientService {
 
         let uploaded = false;
         let retries = 0;
-        while (!uploaded && retries < 4 && !aborted) {
+        while (!uploaded && retries < 5 && !aborted) {
           if (shouldAbort && shouldAbort()) {
             aborted = true;
             throw new Error('UPLOAD_ABORTED');
           }
 
-          let sender: any;
           try {
-            sender = await (client as any).getSender(client.session.dcId);
-            
             if (isLarge) {
-              await sender.send(
+              await client.invoke(
                 new Api.upload.SaveBigFilePart({
                   fileId,
                   filePart: i,
@@ -581,7 +586,7 @@ class GramJSClientService {
                 })
               );
             } else {
-              await sender.send(
+              await client.invoke(
                 new Api.upload.SaveFilePart({
                   fileId,
                   filePart: i,
@@ -593,11 +598,6 @@ class GramJSClientService {
           } catch (uploadErr: any) {
             retries++;
             console.warn(`[GramJS] Part ${i + 1}/${totalParts} (worker ${workerId}) retry ${retries}:`, uploadErr);
-            if (sender && typeof sender.isConnected === 'function' && !sender.isConnected()) {
-              await new Promise((r) => setTimeout(r, 1000));
-              retries--; // don't count disconnect as a permanent failure attempt
-              continue;
-            }
             if (uploadErr?.errorMessage?.startsWith('FLOOD_WAIT_')) {
               const waitSec = parseInt(uploadErr.errorMessage.split('_')[2], 10) || 2;
               await new Promise((r) => setTimeout(r, waitSec * 1000));
@@ -608,7 +608,7 @@ class GramJSClientService {
         }
 
         if (!uploaded) {
-          throw new Error(`Failed to upload part ${i + 1}/${totalParts} after multiple retries.`);
+          throw new Error(`Failed to upload part ${i + 1}/${totalParts} after ${retries} retries.`);
         }
 
         completedPartsCount++;
@@ -621,7 +621,7 @@ class GramJSClientService {
       }
     };
 
-    // Run pipelined upload: 1 sequential producer + up to 3 parallel socket upload workers
+    // Run pipelined upload: 1 sequential producer + up to 4 concurrent invoke() workers
     const workers = Array.from({ length: CONCURRENCY }, (_, idx) => uploadWorker(idx + 1));
     try {
       await Promise.all([producerLoop(), ...workers]);
