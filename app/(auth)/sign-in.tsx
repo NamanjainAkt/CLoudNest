@@ -127,7 +127,7 @@ export default function SignInScreen() {
                   { color: colors.onSurfaceVariant, fontWeight: '500' },
                 ]}
               >
-                CLOUDNEST VAULT
+                CLOUDNEST
               </Text>
             </View>
 
@@ -144,7 +144,7 @@ export default function SignInScreen() {
                   { color: colors.onSurfaceVariant, marginLeft: 4, fontSize: 10 },
                 ]}
               >
-                Protected
+                Personal Cloud
               </Text>
             </View>
           </View>
@@ -326,7 +326,7 @@ export default function SignInScreen() {
                     { color: colors.onSurface, fontWeight: '600', marginLeft: 6 },
                   ]}
                 >
-                  Private & Secure
+                  Private & Fast Telegram Cloud
                 </Text>
               </View>
               <View
@@ -336,7 +336,7 @@ export default function SignInScreen() {
                 ]}
               >
                 <Text style={[typography.monoSm, { color: colors.secondary, fontSize: 10 }]}>
-                  Protected
+                  Personal Cloud Channel
                 </Text>
               </View>
             </View>
@@ -347,7 +347,7 @@ export default function SignInScreen() {
                 { color: colors.onSurfaceVariant, marginTop: 8, lineHeight: 18 },
               ]}
             >
-              Files are encrypted safely on your device before uploading. No one else can see your photos, videos, or documents.
+              Your files are stored safely in your personal Telegram cloud. Fast, private, and accessible only by you across all devices.
             </Text>
           </View>
 

@@ -483,7 +483,7 @@ export default function FolderBrowserScreen() {
                 <View style={styles.secureTag}>
                   <ShieldCheck size={12} color={colors.primary} style={{ marginRight: 3 }} />
                   <Text style={[typography.monoSm, { color: colors.primary, fontSize: 11, fontWeight: '600' }]}>
-                    Encrypted Vault
+                    Cloud Storage
                   </Text>
                 </View>
               </>

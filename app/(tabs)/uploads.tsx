@@ -7,7 +7,7 @@ import {
   FlatList,
   TouchableOpacity,
 } from 'react-native';
-import { PauseCircle, Lock, UploadCloud } from 'lucide-react-native';
+import { PauseCircle, Cloud, UploadCloud } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { TopHeader } from '../../components/common/TopHeader';
 import { FilterChip } from '../../components/common/FilterChip';
@@ -120,7 +120,7 @@ export default function UploadsScreen() {
           </View>
 
           <View style={styles.telemetryBottomRow}>
-            <Lock size={12} color={colors.tertiary} style={{ marginRight: 5 }} />
+            <Cloud size={12} color={colors.primary} style={{ marginRight: 5 }} />
             <Text
               style={[
                 typography.monoSm,
@@ -128,7 +128,7 @@ export default function UploadsScreen() {
               ]}
               numberOfLines={1}
             >
-              Private & Encrypted • Automatic Cloud Sync
+              Private & Secure • Automatic Cloud Sync
             </Text>
           </View>
         </View>

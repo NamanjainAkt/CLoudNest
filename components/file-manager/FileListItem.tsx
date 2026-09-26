@@ -8,7 +8,7 @@ import {
   FileArchive,
   Music,
   File,
-  Lock,
+  Cloud,
   Star,
   MoreVertical,
 } from 'lucide-react-native';
@@ -102,7 +102,7 @@ export const FileListItem = memo<FileListItemProps>(({ file, onPress, onMorePres
           )}
           {file.isEncrypted && (
             <View style={[styles.lockBadge, { backgroundColor: colors.primary }]}>
-              <Lock size={8} color={colors.onPrimary} />
+              <Cloud size={8} color={colors.onPrimary} />
             </View>
           )}
         </View>

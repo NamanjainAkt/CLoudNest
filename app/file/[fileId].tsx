@@ -6,6 +6,8 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
+  Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -13,16 +15,19 @@ import {
   Star,
   MoreVertical,
   ShieldCheck,
-  Lock,
+  Cloud,
   ZoomIn,
   ZoomOut,
   Download,
+  Share2,
   FolderInput,
   Edit2,
   Trash2,
   FileText,
   Eye,
 } from 'lucide-react-native';
+import * as Sharing from 'expo-sharing';
+import * as MediaLibrary from 'expo-media-library/legacy';
 import { useTheme } from '../../theme/ThemeContext';
 import { FileDao } from '../../services/db/dbClient';
 import { FileRecord } from '../../services/types/models';
@@ -92,8 +97,64 @@ export default function FileDetailsScreen() {
     }
   };
 
-  const handleDownload = () => {
-    setPreviewModalVisible(true);
+  const handleDownloadFile = async () => {
+    if (!file) return;
+    try {
+      const ext = file.extension.toLowerCase();
+      const isMedia = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'mp4', 'mov', 'mkv', 'webm', '3gp'].includes(ext);
+
+      if (isMedia && file.localCachePath) {
+        try {
+          const perm = await MediaLibrary.requestPermissionsAsync();
+          if (perm.granted || perm.status === 'granted') {
+            await MediaLibrary.saveToLibraryAsync(file.localCachePath);
+            Alert.alert('Download Complete', 'Saved to your device gallery!');
+            return;
+          }
+        } catch (mediaErr) {
+          console.warn('MediaLibrary save error:', mediaErr);
+        }
+      }
+
+      if (file.localCachePath) {
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(file.localCachePath, {
+            mimeType: file.mimeType,
+            dialogTitle: `Download / Save ${file.name}`,
+          });
+          Alert.alert('Download Ready', 'File is downloaded and ready to save/export.');
+          return;
+        }
+      }
+
+      Alert.alert('Download Ready', 'File is downloaded and saved in your device storage.');
+    } catch (err: any) {
+      console.error('Download error:', err);
+      Alert.alert('Download Error', err?.message || 'Failed to download file.');
+    }
+  };
+
+  const handleShareFile = async () => {
+    if (!file) return;
+    try {
+      if (file.localCachePath) {
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(file.localCachePath, {
+            mimeType: file.mimeType,
+            dialogTitle: `Share ${file.name}`,
+          });
+          return;
+        }
+      }
+      await Share.share({
+        message: `CloudNest File: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`,
+        title: file.name,
+      });
+    } catch (err) {
+      console.warn('Share error:', err);
+    }
   };
 
   const handleRename = async (newName: string) => {
@@ -198,7 +259,7 @@ export default function FileDetailsScreen() {
             },
           ]}
         >
-          {/* Top Security Badges */}
+          {/* Top Cloud Badges */}
           <View style={styles.previewTopBar}>
             <View
               style={[
@@ -213,7 +274,7 @@ export default function FileDetailsScreen() {
                   { color: colors.onSurface, marginLeft: 4, fontSize: 10 },
                 ]}
               >
-                {file?.isEncrypted ? 'Encrypted' : 'Cloud Synced'}
+                Cloud Synced
               </Text>
             </View>
 
@@ -223,9 +284,9 @@ export default function FileDetailsScreen() {
                 { backgroundColor: colors.primaryContainer + '30' },
               ]}
             >
-              <Lock size={11} color={colors.primary} />
+              <Cloud size={11} color={colors.primary} />
               <Text style={[typography.labelSm, { color: colors.primary, fontSize: 10, marginLeft: 3 }]}>
-                {file?.isEncrypted ? 'Confidential' : 'Direct Cloud'}
+                Direct Cloud
               </Text>
             </View>
           </View>
@@ -341,22 +402,71 @@ export default function FileDetailsScreen() {
           </View>
 
           <View style={[styles.metaRow, { borderTopColor: colors.borderSubtle, borderTopWidth: 1 }]}>
-            <Text style={[typography.bodySm, { color: colors.onSurfaceVariant }]}>Security</Text>
+            <Text style={[typography.bodySm, { color: colors.onSurfaceVariant }]}>Cloud Status</Text>
             <Text style={[typography.monoSm, { color: colors.secondary, fontSize: 11, fontWeight: '600' }]}>
-              Protected & Verified
+              Synced & Verified
             </Text>
           </View>
         </View>
 
         {/* Action Buttons */}
         <View style={styles.actionsContainer}>
-          <PillButton
-            label="Open File Preview"
-            onPress={handleDownload}
-            icon={<Download size={16} color={colors.onPrimaryContainer} />}
-            size="lg"
-            style={{ width: '100%', marginBottom: 12 }}
-          />
+          {/* Prominent Download & Share Buttons */}
+          <View style={styles.primaryButtonsRow}>
+            <TouchableOpacity
+              style={[styles.primaryActionBtn, { backgroundColor: colors.primary }]}
+              onPress={handleDownloadFile}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Download File"
+            >
+              <Download size={18} color={colors.onPrimary} style={{ marginRight: 8 }} />
+              <Text style={[typography.labelMd, { color: colors.onPrimary, fontWeight: '700', fontSize: 14 }]}>
+                Download
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.primaryActionBtn,
+                {
+                  backgroundColor: colors.surfaceContainerHigh,
+                  borderColor: colors.borderSubtle,
+                  borderWidth: 1,
+                },
+              ]}
+              onPress={handleShareFile}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Share File"
+            >
+              <Share2 size={18} color={colors.primary} style={{ marginRight: 8 }} />
+              <Text style={[typography.labelMd, { color: colors.primary, fontWeight: '600', fontSize: 14 }]}>
+                Share
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Fullscreen Preview Action */}
+          <TouchableOpacity
+            style={[
+              styles.previewActionBtn,
+              {
+                backgroundColor: colors.surfaceContainer,
+                borderColor: colors.borderSubtle,
+                borderRadius: radii.full,
+              },
+            ]}
+            onPress={() => setPreviewModalVisible(true)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Open File Preview"
+          >
+            <Eye size={16} color={colors.primary} style={{ marginRight: 8 }} />
+            <Text style={[typography.labelMd, { color: colors.onSurface, fontWeight: '600' }]}>
+              Open Full Preview
+            </Text>
+          </TouchableOpacity>
 
           <View style={styles.actionRowGrid}>
             <TouchableOpacity
@@ -652,6 +762,27 @@ const styles = StyleSheet.create({
   },
   actionsContainer: {
     marginTop: 10,
+  },
+  primaryButtonsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 10,
+  },
+  primaryActionBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewActionBtn: {
+    height: 44,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
   },
   actionRowGrid: {
     flexDirection: 'row',

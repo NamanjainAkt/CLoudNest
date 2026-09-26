@@ -231,7 +231,7 @@ export default function OtpVerifyScreen() {
                 { color: colors.onSurfaceVariant, marginTop: 2, lineHeight: 16 },
               ]}
             >
-              CloudNest never stores your files on intermediate servers. Your data is encrypted on your device and private to you.
+              CloudNest never stores your files on intermediate servers. Your data is stored safely in your personal cloud and private to you.
             </Text>
           </View>
         </View>

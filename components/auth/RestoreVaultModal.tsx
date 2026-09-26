@@ -91,9 +91,9 @@ export const RestoreVaultModal: React.FC<RestoreVaultModalProps> = ({
 
       setLoading(false);
       onClose();
-      Alert.alert('Vault Restored', 'Your Zero-Knowledge Master Key has been successfully recovered.', [
+      Alert.alert('Storage Restored', 'Your account and personal cloud access have been successfully restored.', [
         {
-          text: 'Open Vault',
+          text: 'Open Storage',
           onPress: () => router.replace('/(tabs)'),
         },
       ]);
@@ -179,7 +179,7 @@ export const RestoreVaultModal: React.FC<RestoreVaultModalProps> = ({
                   { color: colors.onSurfaceVariant, marginBottom: 16, lineHeight: 18 },
                 ]}
               >
-                Enter your 24-word recovery phrase or paste the entire phrase into any field to decrypt your existing vault.
+                Enter your recovery phrase or paste the phrase into any field to restore your existing cloud storage.
               </Text>
 
               {/* 24 Word Inputs Grid */}
@@ -233,7 +233,7 @@ export const RestoreVaultModal: React.FC<RestoreVaultModalProps> = ({
               {/* Action Button */}
               <View style={styles.actionContainer}>
                 <PillButton
-                  label="Restore Vault & Decrypt"
+                  label="Restore Cloud Storage"
                   onPress={handleRestore}
                   loading={loading}
                   icon={<ArrowRight size={16} color={colors.onPrimary} />}

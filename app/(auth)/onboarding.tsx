@@ -43,10 +43,10 @@ const SLIDES: SlideData[] = [
   },
   {
     id: '3',
-    title: 'Safe & Encrypted by Default',
-    subtitle: 'Your files are encrypted on your phone before uploading, so only you have the keys to view them.',
-    badge1: 'ENCRYPTED',
-    badge2: 'PRIVATE & SAFE',
+    title: 'High-Speed Cloud Storage',
+    subtitle: 'Your files are saved directly to your personal Telegram cloud with instant sync and total privacy.',
+    badge1: 'PRIVATE CLOUD',
+    badge2: 'INSTANT SYNC',
   },
 ];
 
@@ -145,12 +145,12 @@ export default function OnboardingScreen() {
         </View>
 
         <View style={[styles.floatBadge1, { backgroundColor: colors.surfaceContainerHigh }]}>
-          <Lock size={13} color={colors.primary} />
-          <Text style={[typography.monoSm, { color: colors.onSurface, marginLeft: 4 }]}>ENCRYPTED</Text>
+          <Cloud size={13} color={colors.primary} />
+          <Text style={[typography.monoSm, { color: colors.onSurface, marginLeft: 4 }]}>PRIVATE CLOUD</Text>
         </View>
         <View style={[styles.floatBadge2, { backgroundColor: colors.surfaceContainerHigh }]}>
           <Shield size={13} color={colors.secondary} />
-          <Text style={[typography.monoSm, { color: colors.onSurface, marginLeft: 4 }]}>PRIVATE & SAFE</Text>
+          <Text style={[typography.monoSm, { color: colors.onSurface, marginLeft: 4 }]}>INSTANT SYNC</Text>
         </View>
       </View>
     );

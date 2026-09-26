@@ -264,7 +264,7 @@ export default function SearchScreen() {
           <View style={styles.telemetryRight}>
             <View style={[styles.ramDot, { backgroundColor: colors.secondary }]} />
             <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 10 }]}>
-              {hasActiveFilters ? 'Filters Applied' : 'Encrypted & Fast'}
+              {hasActiveFilters ? 'Filters Applied' : 'Cloud Synced & Fast'}
             </Text>
           </View>
         </View>

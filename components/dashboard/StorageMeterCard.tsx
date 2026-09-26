@@ -61,14 +61,14 @@ export const StorageMeterCard: React.FC<StorageMeterCardProps> = ({ stats, onMan
             { backgroundColor: colors.surfaceContainerHighest },
           ]}
         >
-          <Lock size={11} color={colors.primary} />
+          <Cloud size={11} color={colors.primary} />
           <Text
             style={[
               typography.monoSm,
-              { color: colors.primary, marginLeft: 4, fontSize: 10, fontWeight: '500' },
+              { color: colors.primary, marginLeft: 4, fontSize: 10, fontWeight: '600' },
             ]}
           >
-            Protected
+            TELEGRAM CLOUD
           </Text>
         </View>
       </View>

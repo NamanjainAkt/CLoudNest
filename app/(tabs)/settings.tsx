@@ -30,11 +30,9 @@ import { useTheme } from '../../theme/ThemeContext';
 import { TopHeader } from '../../components/common/TopHeader';
 import { useVaultStore } from '../../store/useVaultStore';
 import { BiometricService } from '../../services/crypto/biometrics';
-import { entropyToMnemonic } from '../../services/crypto/mnemonic';
 import { generateMasterSeed } from '../../services/crypto/keyDerivation';
 import { SecureStorageService } from '../../services/crypto/secureStore';
 import { CacheManager } from '../../services/storage/cacheManager';
-import { RecoveryPhraseModal } from '../../components/settings/RecoveryPhraseModal';
 import { MTProtoClient } from '../../services/telegram/mtprotoClient';
 import { CustomConfirmDialog } from '../../components/common/CustomConfirmDialog';
 
@@ -61,9 +59,6 @@ export default function SettingsScreen() {
     formattedSize: '0 B',
     formattedMaxLimit: '1 GB',
   });
-  const [recoveryModalVisible, setRecoveryModalVisible] = useState(false);
-  const [recoveryWords, setRecoveryWords] = useState<string[]>([]);
-  const [keyFingerprint, setKeyFingerprint] = useState('0x0000…0000');
   const [clearCacheVisible, setClearCacheVisible] = useState(false);
   const [clearCacheLoading, setClearCacheLoading] = useState(false);
   const [signOutVisible, setSignOutVisible] = useState(false);
@@ -93,15 +88,6 @@ export default function SettingsScreen() {
       setBiometrics(enabled);
 
       await refreshCacheMetrics();
-
-      let masterKey = await SecureStorageService.getMasterKey();
-      if (!masterKey) {
-        masterKey = await generateMasterSeed();
-        await SecureStorageService.saveMasterKey(masterKey);
-      }
-      const words = entropyToMnemonic(masterKey);
-      setRecoveryWords(words);
-      setKeyFingerprint(`0x${masterKey.slice(0, 4)}…${masterKey.slice(-4)}`.toUpperCase());
     }
     loadSecuritySettings();
   }, []);
@@ -162,21 +148,6 @@ export default function SettingsScreen() {
       setSignOutLoading(false);
       setSignOutVisible(false);
     }
-  };
-
-  const handleExportKey = async () => {
-    if (biometrics) {
-      const success = await BiometricService.authenticate('Authorize viewing recovery phrase');
-      if (!success) {
-        setInfoDialog({
-          visible: true,
-          title: 'Authentication Required',
-          message: 'Authentication required to view recovery phrase.',
-        });
-        return;
-      }
-    }
-    setRecoveryModalVisible(true);
   };
 
   const formattedCloudUsed = CacheManager.formatBytes(storageStats?.totalUsedBytes || 0);
@@ -326,7 +297,7 @@ export default function SettingsScreen() {
                   </Text>
                 </View>
                 <Text style={[typography.monoSm, { color: colors.outline, fontSize: 10 }]}>
-                  Encrypted & Active
+                  Cloud Synced & Active
                 </Text>
               </View>
             </View>
@@ -474,7 +445,7 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Section 4: Security & Privacy */}
+        {/* Section 4: Account & Cloud Storage */}
         <View style={styles.sectionContainer}>
           <Text
             style={[
@@ -482,7 +453,7 @@ export default function SettingsScreen() {
               { color: colors.onSurfaceVariant, marginBottom: 8, letterSpacing: 0.8 },
             ]}
           >
-            SECURITY & PRIVACY
+            ACCOUNT & CLOUD STORAGE
           </Text>
 
           <View
@@ -514,20 +485,18 @@ export default function SettingsScreen() {
               />
             </View>
 
-            <TouchableOpacity
-              onPress={handleExportKey}
+            <View
               style={[styles.settingActionRow, { borderTopColor: colors.borderSubtle, borderTopWidth: 1 }]}
-              activeOpacity={0.7}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Key size={18} color={colors.tertiary} style={{ marginRight: 10 }} />
+                <Cloud size={18} color={colors.primary} style={{ marginRight: 10 }} />
                 <View>
-                  <Text style={[typography.bodyMd, { color: colors.onSurface }]}>Backup Recovery Phrase (24 Words)</Text>
-                  <Text style={[typography.bodySm, { color: colors.onSurfaceVariant, fontSize: 12 }]}>View recovery key to backup your files</Text>
+                  <Text style={[typography.bodyMd, { color: colors.onSurface }]}>Telegram Cloud Engine</Text>
+                  <Text style={[typography.bodySm, { color: colors.onSurfaceVariant, fontSize: 12 }]}>Personal cloud channel linked & active</Text>
                 </View>
               </View>
-              <ChevronRight size={16} color={colors.onSurfaceVariant} />
-            </TouchableOpacity>
+              <Check size={16} color={colors.primary} />
+            </View>
 
             <TouchableOpacity
               onPress={() => router.push('/trash')}
@@ -578,19 +547,11 @@ export default function SettingsScreen() {
                 { color: colors.onSurfaceVariant, marginTop: 6, lineHeight: 18 },
               ]}
             >
-              Private cloud storage with end-to-end encryption. Your files are encrypted on your device and safely saved to your personal Telegram cloud.
+              High-speed private cloud storage. Your files are stored safely in your personal Telegram cloud and accessible across all your devices.
             </Text>
           </View>
         </View>
       </ScrollView>
-
-      {/* 24-Word Recovery Phrase Modal */}
-      <RecoveryPhraseModal
-        visible={recoveryModalVisible}
-        onClose={() => setRecoveryModalVisible(false)}
-        words={recoveryWords}
-        keyFingerprint={keyFingerprint}
-      />
 
       {/* Clear Cache Confirmation Dialog */}
       <CustomConfirmDialog

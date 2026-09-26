@@ -196,7 +196,7 @@ export const BiometricLockOverlay: React.FC<BiometricLockOverlayProps> = ({
               },
             ]}
           >
-            Your AES-256-GCM zero-knowledge vault is locked. Authenticate with {label} to continue.
+            Your CloudNest storage is locked. Authenticate with {label} to continue.
           </Text>
 
           {/* Error Message if any */}

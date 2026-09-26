@@ -73,7 +73,7 @@ export const UploadBottomSheet: React.FC<UploadBottomSheetProps> = ({
                       { color: colors.onSurfaceVariant, marginTop: 2 },
                     ]}
                   >
-                    Encrypted & Private
+                    Cloud Storage & Sync
                   </Text>
                 </View>
 
@@ -274,7 +274,7 @@ export const UploadBottomSheet: React.FC<UploadBottomSheetProps> = ({
                     { color: colors.onSurfaceVariant, flex: 1, fontSize: 11 },
                   ]}
                 >
-                  Private & Secure — Files are encrypted on your device before uploading.
+                  Private & Secure — Files are saved safely directly to your personal cloud.
                 </Text>
               </View>
             </View>

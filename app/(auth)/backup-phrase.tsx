@@ -75,7 +75,7 @@ export default function BackupPhraseScreen() {
 
       Alert.alert(
         'Phrase Copied',
-        'Your 24-word recovery phrase has been copied to your clipboard. For security, your clipboard will be automatically cleared in 60 seconds.'
+        'Your recovery phrase has been copied to your clipboard. For security, your clipboard will be automatically cleared in 60 seconds.'
       );
     } catch {
       Alert.alert('Copy Failed', 'Could not copy to clipboard.');
@@ -117,7 +117,7 @@ export default function BackupPhraseScreen() {
   const handleSkip = () => {
     Alert.alert(
       'Skip Backup?',
-      'Without your 24-word recovery phrase, your encrypted files CANNOT be recovered if you lose access to this device or sign out.\n\nAre you sure you want to skip?',
+      'Without your recovery phrase, your cloud files cannot be restored if you lose access to this device or sign out.\n\nAre you sure you want to skip?',
       [
         {
           text: 'Cancel',
@@ -184,7 +184,7 @@ export default function BackupPhraseScreen() {
                 },
               ]}
             >
-              These 24 words represent your master encryption key. Write them down in order and store them safely offline.
+              These 24 words represent your account recovery phrase. Write them down in order and store them safely offline.
             </Text>
 
             {/* Warning Banner */}

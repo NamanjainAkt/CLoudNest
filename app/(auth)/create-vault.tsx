@@ -11,7 +11,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
-import { Lock, Check, RefreshCw } from 'lucide-react-native';
+import { Cloud, Check, RefreshCw } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { TopHeader } from '../../components/common/TopHeader';
 import { MTProtoClient } from '../../services/telegram/mtprotoClient';
@@ -42,14 +42,14 @@ export default function CreateVaultScreen() {
     // Sequence the 4 milestones
     const runSetup = async () => {
       try {
-        // Step 1: Master key
+        // Step 1: Storage setup
         await new Promise((r) => setTimeout(r, 600));
         const masterKey = await generateMasterSeed();
         await SecureStorageService.saveMasterKey(masterKey);
         setStep(2);
         setProgressPercent(50);
 
-        // Step 2: Zero-Knowledge container
+        // Step 2: Storage container
         await new Promise((r) => setTimeout(r, 600));
         setStep(3);
         setProgressPercent(75);
@@ -72,8 +72,8 @@ export default function CreateVaultScreen() {
       } catch (err: any) {
         console.error('Vault setup error:', err);
         Alert.alert(
-          'Vault Initialization Error',
-          err?.message || 'Could not connect to Telegram to initialize your private vault.',
+          'Storage Initialization Error',
+          err?.message || 'Could not connect to Telegram to initialize your personal cloud storage.',
           [
             {
               text: 'Retry',
@@ -99,7 +99,7 @@ export default function CreateVaultScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.surface }]}>
-      <TopHeader title="Creating Vault" showBack={false} showEnclaveBadge={false} />
+      <TopHeader title="Setting Up Cloud" showBack={false} showEnclaveBadge={false} />
 
       <ScrollView
         contentContainerStyle={[
@@ -136,7 +136,7 @@ export default function CreateVaultScreen() {
             </Svg>
           </Animated.View>
 
-          {/* Central Shield Vault Halo */}
+          {/* Central Cloud Halo */}
           <View
             style={[
               styles.shieldHalo,
@@ -149,25 +149,25 @@ export default function CreateVaultScreen() {
                 { backgroundColor: colors.surfaceContainerLowest },
               ]}
             >
-              <Lock size={28} color={colors.primary} />
+              <Cloud size={28} color={colors.primary} />
             </View>
           </View>
         </View>
 
-        {/* Title and Encryption Status */}
+        {/* Title and Cloud Status */}
         <Text
           style={[
             typography.headlineMd,
             { color: colors.onSurface, textAlign: 'center', marginTop: 16 },
           ]}
         >
-          Creating your private vault…
+          Setting up your personal cloud…
         </Text>
 
         <View style={styles.entropyPill}>
           <View style={[styles.pulseDot, { backgroundColor: colors.primary }]} />
           <Text style={[typography.monoSm, { color: colors.onSurfaceVariant }]}>
-            End-to-End Encrypted Storage
+            High-Speed Telegram Cloud Storage
           </Text>
         </View>
 
@@ -235,10 +235,10 @@ export default function CreateVaultScreen() {
             </View>
             <View style={styles.milestoneText}>
               <Text style={[typography.labelMd, { color: colors.onSurface }]}>
-                Creating security keys
+                Initializing Telegram Storage
               </Text>
               <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, marginTop: 2 }]}>
-                Generating unique encryption keys
+                Setting up secure local environment
               </Text>
             </View>
             <Text style={[typography.monoSm, { color: colors.primary }]}>Done</Text>
@@ -267,10 +267,10 @@ export default function CreateVaultScreen() {
             </View>
             <View style={styles.milestoneText}>
               <Text style={[typography.labelMd, { color: colors.onSurface }]}>
-                Setting up secure storage
+                Creating Storage Container
               </Text>
               <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, marginTop: 2 }]}>
-                Private container ready on device
+                Storage container ready on device
               </Text>
             </View>
             <Text style={[typography.monoSm, { color: step >= 2 ? colors.primary : colors.onSurfaceVariant }]}>
@@ -304,10 +304,10 @@ export default function CreateVaultScreen() {
             </View>
             <View style={styles.milestoneText}>
               <Text style={[typography.labelMd, { color: colors.onSurface }]}>
-                Connecting to cloud storage
+                Linking Personal Cloud Channel
               </Text>
               <Text style={[typography.monoSm, { color: colors.secondary, marginTop: 2 }]}>
-                Setting up private storage channel…
+                Setting up personal cloud channel…
               </Text>
             </View>
             <Text style={[typography.monoSm, { color: step >= 4 ? colors.primary : colors.secondary }]}>
@@ -338,7 +338,7 @@ export default function CreateVaultScreen() {
             </View>
             <View style={styles.milestoneText}>
               <Text style={[typography.labelMd, { color: colors.onSurface }]}>
-                Finishing setup
+                Cloud Storage Ready
               </Text>
               <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, marginTop: 2 }]}>
                 Preparing your offline file manager

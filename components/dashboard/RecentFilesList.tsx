@@ -2,7 +2,7 @@
 import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { FileText, Film, Presentation, File, Lock, ChevronRight } from 'lucide-react-native';
+import { FileText, Film, Presentation, File, Cloud, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { FileRecord } from '../../services/types/models';
 
@@ -57,14 +57,14 @@ export const RecentFilesList: React.FC<RecentFilesListProps> = ({ files, onSeeAl
                 { backgroundColor: colors.surfaceContainerHighest },
               ]}
             >
-              <Lock size={10} color={colors.primary} />
+              <Cloud size={10} color={colors.primary} />
               <Text
                 style={[
                   typography.monoSm,
                   { color: colors.primary, fontSize: 10, marginLeft: 3 },
                 ]}
               >
-                Secure
+                Cloud
               </Text>
             </View>
           </View>
