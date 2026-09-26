@@ -252,7 +252,8 @@ Implemented in [`services/telegram/types.ts`](file:///C:/Andy%20projects/teleSto
   - `sendCode(phoneNumber)`: Dispatches `Api.auth.SendCode` to Telegram to send authentic SMS/Telegram verification code.
   - `signIn(phoneNumber, phoneCodeHash, code)`: Invokes `Api.auth.SignIn`, returns live user profile, and persists the authenticated `StringSession` to Android Keystore (`Expo SecureStore`).
   - `createPrivateVaultChannel()`: Queries existing dialogs to avoid duplicates or creates a dedicated `CloudNest Private Vault [E2EE]` broadcast channel via `Api.channels.CreateChannel`.
-  - `uploadEncryptedBlob(fileBuffer, fileName, onProgress)`: Wraps AES-256-GCM ciphertext into `CustomFile` and dispatches `sendFile` with chunk progress callbacks.
+  - `uploadEncryptedBlob(fileBuffer, fileName, onProgress)`: Legacy buffer upload with chunk progress callbacks.
+  - `uploadFileStreaming(filePath, fileName, fileSize, ...)`: High-speed streaming MTProto pipeline with 4-way concurrent chunk requests, zero encryption overhead for maximum upload throughput, and 15s per-chunk timeout.
 
 ---
 
@@ -265,7 +266,7 @@ Implemented in [`store/useVaultStore.ts`](file:///C:/Andy%20projects/teleStore/s
 - `currentFolderId`: Active folder in directory browser.
 - `folders` & `recentFiles`: Live local file system cache synced with SQLite.
 - `uploadQueue`: Active upload jobs with real-time speed and chunk telemetry.
-- `BackgroundSync`: Dedicated sync worker that watches the queue and drives chunk encryption and channel upload.
+- `BackgroundSync`: Dedicated sync worker that watches the queue and drives high-speed chunk streaming to Telegram with automatic AppState resumption.
 
 ---
 

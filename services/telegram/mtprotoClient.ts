@@ -136,9 +136,10 @@ class NativeMTProtoClient {
     filePath: string,
     fileName: string,
     fileSize: number,
-    masterKeyHex: string,
+    masterKeyHex?: string,
     onProgress?: (progress: number, currentPart: number, totalParts: number, speedText?: string) => void,
-    shouldAbort?: () => boolean
+    shouldAbort?: () => boolean,
+    mimeType?: string
   ): Promise<MTProtoUploadResult> {
     return await GramJSClient.uploadFileStreaming(
       filePath,
@@ -146,7 +147,8 @@ class NativeMTProtoClient {
       fileSize,
       masterKeyHex,
       onProgress,
-      shouldAbort
+      shouldAbort,
+      mimeType
     );
   }
 

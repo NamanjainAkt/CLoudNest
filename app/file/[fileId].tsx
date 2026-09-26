@@ -213,7 +213,7 @@ export default function FileDetailsScreen() {
                   { color: colors.onSurface, marginLeft: 4, fontSize: 10 },
                 ]}
               >
-                Encrypted
+                {file?.isEncrypted ? 'Encrypted' : 'Cloud Synced'}
               </Text>
             </View>
 
@@ -225,7 +225,7 @@ export default function FileDetailsScreen() {
             >
               <Lock size={11} color={colors.primary} />
               <Text style={[typography.labelSm, { color: colors.primary, fontSize: 10, marginLeft: 3 }]}>
-                Confidential
+                {file?.isEncrypted ? 'Confidential' : 'Direct Cloud'}
               </Text>
             </View>
           </View>
@@ -273,7 +273,7 @@ export default function FileDetailsScreen() {
                 { color: colors.onSurface },
               ]}
             >
-              PROTECTED
+              CLOUD STORAGE
             </Text>
           </TouchableOpacity>
 

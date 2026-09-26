@@ -105,7 +105,7 @@ class BackgroundSyncManager {
         nextItem.filePath,
         nextItem.fileName,
         actualSize,
-        masterKey,
+        masterKey || '',
         (progress, currentPart, total, speedText) => {
           store.updateQueueItemProgress(
             nextItem.id,
@@ -118,7 +118,8 @@ class BackgroundSyncManager {
         () => {
           const item = useVaultStore.getState().uploadQueue.find((i) => i.id === nextItem.id);
           return !item || item.status === 'paused';
-        }
+        },
+        nextItem.mimeType
       );
 
       // Verify item wasn't paused or cancelled before final DB commit
@@ -140,8 +141,8 @@ class BackgroundSyncManager {
         extension: ext,
         telegramMessageId: uploadRes.messageId,
         telegramChannelId: uploadRes.channelId,
-        isEncrypted: true,
-        encryptionIv: uploadRes.ivHex || '',
+        isEncrypted: false,
+        encryptionIv: '',
         sha256Hash: uploadRes.sha256Hash || '',
         localCachePath: nextItem.filePath,
         isFavorite: false,
@@ -164,6 +165,20 @@ class BackgroundSyncManager {
 
       console.warn(`[BackgroundSync] Upload failed for ${nextItem.fileName}:`, err);
       store.markQueueItemFailed(nextItem.id, err?.message || 'Sync failed');
+    }
+  }
+
+  handleAppStateChange(nextState: string): void {
+    if (nextState === 'active') {
+      const store = useVaultStore.getState();
+      const hasPending = store.uploadQueue.some(
+        (item) => item.status === 'uploading' || item.status === 'pending'
+      );
+      if (hasPending) {
+        setTimeout(() => {
+          this.processNextPendingUpload();
+        }, 500);
+      }
     }
   }
 

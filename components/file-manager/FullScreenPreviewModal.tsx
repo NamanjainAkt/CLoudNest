@@ -97,7 +97,7 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
       }
       // Fallback native share
       await Share.share({
-        message: `CloudNest Encrypted Vault File: ${file.name} (${(file.size / 1024).toFixed(1)} KB) - SHA-256: ${file.sha256Hash.slice(0, 16)}…`,
+        message: `CloudNest File: ${file.name} (${(file.size / 1024).toFixed(1)} KB) - SHA-256: ${file.sha256Hash.slice(0, 16)}…`,
         title: file.name,
       });
     } catch (err) {
@@ -143,7 +143,7 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
             <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
               <ShieldCheck size={11} color={colors.primary} style={{ marginRight: 4 }} />
               <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 10 }]}>
-                AES-256-GCM Verified • {(file.size / (1024 * 1024)).toFixed(2)} MB
+                {file.isEncrypted ? 'AES-256-GCM Verified' : 'Cloud Verified'} • {(file.size / (1024 * 1024)).toFixed(2)} MB
               </Text>
             </View>
           </View>

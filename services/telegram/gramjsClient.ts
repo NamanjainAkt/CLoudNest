@@ -364,9 +364,10 @@ class GramJSClientService {
     filePath: string,
     fileName: string,
     fileSize: number,
-    masterKeyHex: string,
+    masterKeyHex?: string,
     onProgress?: (progress: number, currentPart: number, totalParts: number, speedText?: string) => void,
-    shouldAbort?: () => boolean
+    shouldAbort?: () => boolean,
+    mimeType?: string
   ): Promise<MTProtoUploadResult> {
     const client = await this.ensureConnected();
     let targetPeer: any = 'me';
@@ -389,20 +390,10 @@ class GramJSClientService {
     const isLarge = actualSize > 10 * 1024 * 1024; // > 10 MB uses SaveBigFilePart
     const fileId = readBigIntFromBuffer(generateRandomBytes(8), true, true);
 
-    // Stream cipher setup (AES-256-CTR)
-    const iv = crypto.randomBytes(16);
-    const ivHex = iv.toString('hex');
-    const safeHex = (masterKeyHex || '').padStart(64, '0').slice(0, 64);
-    const keyBuffer = Buffer.from(safeHex, 'hex');
-
-    const cipher = crypto.createCipheriv('aes-256-ctr', keyBuffer, iv);
     const sha256 = crypto.createHash('sha256');
     const md5 = crypto.createHash('md5');
 
-    // MTProto request pipelining: 4 concurrent invoke() calls overlap on the primary
-    // sender's TCP connection. The protocol doesn't require response-before-next-request,
-    // so concurrent invocations genuinely pipeline on the wire.
-    // Sequential encryption & hashing sliding window kept < 4MB in memory (max 4 queued + 4 in flight).
+    // MTProto request pipelining: 4 concurrent invoke() calls overlap on the socket
     const CONCURRENCY = Math.min(4, totalParts);
     const MAX_QUEUE_BUFFER = 4;
 
@@ -417,6 +408,7 @@ class GramJSClientService {
     let completedPartsCount = 0;
     let uploadedBytesCount = 0;
     let aborted = false;
+    let producerDone = false;
     const consumerWaiters: (() => void)[] = [];
     const producerWaiters: (() => void)[] = [];
 
@@ -434,7 +426,7 @@ class GramJSClientService {
       }
     };
 
-    // Rolling window instantaneous speed calculation (sampling delta bytes / delta time every 500ms with exponential smoothing)
+    // Rolling window instantaneous speed calculation
     const startTime = Date.now();
     let lastSampleTime = startTime;
     let lastSampleBytes = 0;
@@ -459,72 +451,69 @@ class GramJSClientService {
       return formatUploadSpeed(smoothedSpeed);
     };
 
-    // Strictly sequential producer: maintains AES-256-CTR keystream counter, SHA-256 and MD5 integrity
+    // Fast, unencrypted chunk preparation without AES overhead
     const producerLoop = async () => {
-      while (nextPartToPrepare < totalParts) {
-        if (aborted || (shouldAbort && shouldAbort())) {
-          aborted = true;
-          wakeConsumers();
-          throw new Error('UPLOAD_ABORTED');
-        }
-
-        while (readyQueue.length >= MAX_QUEUE_BUFFER && !aborted) {
-          if (shouldAbort && shouldAbort()) {
+      try {
+        while (nextPartToPrepare < totalParts) {
+          if (aborted || (shouldAbort && shouldAbort())) {
             aborted = true;
             wakeConsumers();
             throw new Error('UPLOAD_ABORTED');
           }
-          await new Promise<void>((resolve) => {
-            producerWaiters.push(resolve);
-          });
-        }
 
-        if (aborted) throw new Error('UPLOAD_ABORTED');
+          while (readyQueue.length >= MAX_QUEUE_BUFFER && !aborted) {
+            if (shouldAbort && shouldAbort()) {
+              aborted = true;
+              wakeConsumers();
+              throw new Error('UPLOAD_ABORTED');
+            }
+            await new Promise<void>((resolve) => {
+              producerWaiters.push(resolve);
+            });
+          }
 
-        const i = nextPartToPrepare++;
-        const position = i * CHUNK_SIZE;
-        const length = Math.min(CHUNK_SIZE, actualSize - position);
+          if (aborted) throw new Error('UPLOAD_ABORTED');
 
-        let chunkBuffer: Buffer;
-        try {
-          const base64Chunk = await FileSystem.readAsStringAsync(filePath, {
-            encoding: FileSystem.EncodingType.Base64,
-            position,
+          const i = nextPartToPrepare++;
+          const position = i * CHUNK_SIZE;
+          const length = Math.min(CHUNK_SIZE, actualSize - position);
+
+          let chunkBuffer: Buffer;
+          try {
+            const base64Chunk = await FileSystem.readAsStringAsync(filePath, {
+              encoding: FileSystem.EncodingType.Base64,
+              position,
+              length,
+            });
+            chunkBuffer = Buffer.from(base64Chunk, 'base64');
+          } catch (readErr: any) {
+            try {
+              const resp = await fetch(filePath);
+              const blob = await resp.blob();
+              const slice = blob.slice(position, position + length);
+              const arrayBuf = await new Response(slice).arrayBuffer();
+              chunkBuffer = Buffer.from(arrayBuf);
+            } catch (fetchErr: any) {
+              throw new Error(
+                `Failed reading chunk ${i + 1}/${totalParts}: ${readErr?.message || fetchErr?.message}`
+              );
+            }
+          }
+
+          // Plaintext hashes directly on raw bytes
+          sha256.update(chunkBuffer);
+          md5.update(chunkBuffer);
+
+          readyQueue.push({
+            partIndex: i,
+            buffer: chunkBuffer,
             length,
           });
-          chunkBuffer = Buffer.from(base64Chunk, 'base64');
-        } catch (readErr: any) {
-          try {
-            const resp = await fetch(filePath);
-            const blob = await resp.blob();
-            const slice = blob.slice(position, position + length);
-            const arrayBuf = await new Response(slice).arrayBuffer();
-            chunkBuffer = Buffer.from(arrayBuf);
-          } catch (fetchErr: any) {
-            throw new Error(
-              `Failed reading chunk ${i + 1}/${totalParts}: ${readErr?.message || fetchErr?.message}`
-            );
-          }
+
+          wakeConsumers();
         }
-
-        // Plaintext integrity hash (strictly sequential)
-        sha256.update(chunkBuffer);
-
-        // Stream encrypt 512KB chunk (1:1 length preservation, strictly sequential)
-        let encChunk = cipher.update(chunkBuffer);
-        if (i === totalParts - 1) {
-          encChunk = Buffer.concat([encChunk, cipher.final()]);
-        }
-
-        // Ciphertext MD5 checksum (strictly sequential)
-        md5.update(encChunk);
-
-        readyQueue.push({
-          partIndex: i,
-          buffer: encChunk,
-          length,
-        });
-
+      } finally {
+        producerDone = true;
         wakeConsumers();
       }
     };
@@ -534,6 +523,7 @@ class GramJSClientService {
         if (aborted || (shouldAbort && shouldAbort())) {
           aborted = true;
           wakeProducers();
+          wakeConsumers();
           throw new Error('UPLOAD_ABORTED');
         }
 
@@ -543,7 +533,8 @@ class GramJSClientService {
           return chunk;
         }
 
-        if (nextPartToPrepare >= totalParts) {
+        // Only exit when producer has finished all chunks AND the queue is completely drained
+        if (producerDone && readyQueue.length === 0) {
           return null;
         }
 
@@ -565,7 +556,7 @@ class GramJSClientService {
         const chunk = await getNextChunk();
         if (!chunk) break;
 
-        const { partIndex: i, buffer: encChunk, length } = chunk;
+        const { partIndex: i, buffer: rawChunk, length } = chunk;
 
         let uploaded = false;
         let retries = 0;
@@ -576,33 +567,36 @@ class GramJSClientService {
           }
 
           try {
-            if (isLarge) {
-              await client.invoke(
-                new Api.upload.SaveBigFilePart({
+            const req = isLarge
+              ? new Api.upload.SaveBigFilePart({
                   fileId,
                   filePart: i,
                   fileTotalParts: totalParts,
-                  bytes: encChunk,
+                  bytes: rawChunk,
                 })
-              );
-            } else {
-              await client.invoke(
-                new Api.upload.SaveFilePart({
+              : new Api.upload.SaveFilePart({
                   fileId,
                   filePart: i,
-                  bytes: encChunk,
-                })
-              );
-            }
+                  bytes: rawChunk,
+                });
+
+            // 15-second per-chunk timeout prevents socket hanging indefinitely
+            await Promise.race([
+              client.invoke(req),
+              new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('SOCKET_TIMEOUT')), 15000)
+              ),
+            ]);
+
             uploaded = true;
           } catch (uploadErr: any) {
             retries++;
-            console.warn(`[GramJS] Part ${i + 1}/${totalParts} (worker ${workerId}) retry ${retries}:`, uploadErr);
+            console.warn(`[GramJS] Part ${i + 1}/${totalParts} (worker ${workerId}) retry ${retries}:`, uploadErr?.message || uploadErr);
             if (uploadErr?.errorMessage?.startsWith('FLOOD_WAIT_')) {
               const waitSec = parseInt(uploadErr.errorMessage.split('_')[2], 10) || 2;
               await new Promise((r) => setTimeout(r, waitSec * 1000));
             } else {
-              await new Promise((r) => setTimeout(r, 1000 * retries));
+              await new Promise((r) => setTimeout(r, Math.min(3000, 1000 * retries)));
             }
           }
         }
@@ -634,28 +628,27 @@ class GramJSClientService {
 
     const sha256Hash = sha256.digest('hex');
     const md5Hash = md5.digest('hex');
-    const encFileName = `${fileName}.enc`;
 
     const inputFile = isLarge
       ? new Api.InputFileBig({
           id: fileId,
           parts: totalParts,
-          name: encFileName,
+          name: fileName,
         })
       : new Api.InputFile({
           id: fileId,
           parts: totalParts,
-          name: encFileName,
+          name: fileName,
           md5Checksum: md5Hash,
         });
 
     const media = new Api.InputMediaUploadedDocument({
       file: inputFile,
-      mimeType: 'application/octet-stream',
+      mimeType: mimeType || 'application/octet-stream',
       attributes: [
-        new Api.DocumentAttributeFilename({ fileName: encFileName }),
+        new Api.DocumentAttributeFilename({ fileName }),
       ],
-      forceFile: true,
+      forceFile: false,
     });
 
     let sentResult: any = null;
@@ -666,7 +659,7 @@ class GramJSClientService {
         new Api.messages.SendMedia({
           peer: targetPeer,
           media,
-          message: '[CloudNest E2EE] SHA-256 Verified Encrypted Chunk',
+          message: fileName,
         })
       );
     } catch (peerErr: any) {
@@ -678,7 +671,7 @@ class GramJSClientService {
           new Api.messages.SendMedia({
             peer: 'me',
             media,
-            message: '[CloudNest E2EE] SHA-256 Verified Encrypted Chunk',
+            message: fileName,
           })
         );
       } else {
@@ -720,7 +713,7 @@ class GramJSClientService {
       channelId: finalPeerStr,
       bytesUploaded: actualSize,
       partsCount: totalParts,
-      ivHex,
+      ivHex: '',
       sha256Hash,
     };
   }

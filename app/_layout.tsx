@@ -35,6 +35,7 @@ function AppContent() {
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', async (nextAppState) => {
+      BackgroundSync.handleAppStateChange(nextAppState);
       if (nextAppState === 'background' || nextAppState === 'inactive') {
         const enabled = await BiometricService.isBiometricLockEnabled();
         const currentSession = useVaultStore.getState().session;

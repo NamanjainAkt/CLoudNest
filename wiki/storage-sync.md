@@ -17,11 +17,17 @@ Limit 1 GB (`cloudnest_max_cache_bytes` in SecureStore); evicts `ORDER BY update
 ## Upload pipeline (`backgroundSync.ts` + `useVaultStore` + `gramjsClient.ts`)
 
 `BackgroundSyncManager` runs parallel uploads up to `MAX_PARALLEL_UPLOADS = 2` concurrent files:
-- **MTProto Multi-Worker Part Pipelining (3 concurrent chunk workers per file)**: `uploadFileStreaming` pipelines up to 3 `Api.upload.SaveBigFilePart` / `SaveFilePart` concurrent requests over the primary socket, saturating network bandwidth and eliminating RTT latency.
-- **Crypto & Hash Integrity**: Reads and encrypts via AES-256-CTR and hashes via SHA-256 and MD5 strictly sequentially in a bounded sliding window (buffer bound = 1 chunk, max in flight = 3 chunks, total memory < 2MB).
-- **Instantaneous Rolling Speed Engine**: Samples delta bytes / delta time every 500ms with exponential smoothing (`smoothed = 0.7 * smoothed + 0.3 * inst`), providing accurate real-time speeds (e.g. `4.8 MB/s`) on cards and dynamically aggregated in `UploadsScreen` header.
-- **Cancellation & Graceful Pause**: Abort handler checks store status and immediately terminates worker pipeline without socket or memory leaks, preserving paused state without false failures.
-- **Multi-File Batch Selection**: Supports multi-select in document and photo pickers, batch enqueuing via `addUploadQueueItems` with collision-proof IDs (`queue_${timestamp}_${rand}`).
+- **Direct Unencrypted High-Speed Streaming**: Removed client-side AES-256 encryption overhead for maximum upload throughput. Files are transferred directly to Telegram with original filenames and MIME types preserved, enabling native previewing of photos, videos, and documents directly in Telegram.
+- **Deadlock-Free MTProto Part Pipelining**: `uploadFileStreaming` pipelines up to 4 concurrent `Api.upload.SaveBigFilePart` / `SaveFilePart` requests over the primary socket with a decoupled buffer (`MAX_QUEUE_BUFFER = 4`). A `producerDone` synchronization barrier guarantees all chunks are read and uploaded without early termination race conditions.
+- **Socket Timeout & Auto-Retry**: 15-second per-chunk timeout prevents socket hangs on intermittent mobile network blips, automatically backing off and retrying up to 5 times.
+- **Background & AppState Resumption**: Subscribes to React Native `AppState` transitions. When the app returns to `active`, any stalled or pending uploads are immediately detected and re-dispatched. Configured with Android `WAKE_LOCK`, `FOREGROUND_SERVICE`, and `FOREGROUND_SERVICE_DATA_SYNC` permissions.
+- **Instantaneous Rolling Speed Engine**: Samples delta bytes / delta time every 500ms with exponential smoothing (`smoothed = 0.7 * smoothed + 0.3 * inst`), providing accurate real-time telemetry on queue rows and aggregate badge.
+- **Cancellation & Graceful Pause**: Abort handler checks store status and immediately terminates worker pipeline without socket or memory leaks, preserving paused state.
+- **Multi-File Batch Selection**: Supports multi-select in document and photo pickers, batch enqueuing via `addUploadQueueItems` with collision-proof IDs.
+
+## APK Size Optimization (`android/app/build.gradle` & `gradle.properties`)
+- **ABI Splitting Enabled**: Configured Gradle ABI splits (`armeabi-v7a`, `arm64-v8a`, `x86`, `x86_64`) plus universal APK generation. Reduces per-device APK footprint from ~103 MB down to ~28-35 MB for standard 64-bit ARM Android devices.
+- **Bundle Compression**: Enabled `android.enableBundleCompression=true` in `gradle.properties` to minimize bundle payload.
 
 ## Zustand store (`useVaultStore.ts`)
 
