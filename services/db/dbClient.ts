@@ -170,6 +170,31 @@ export const FileDao = {
     );
   },
 
+  async syncRemoteFiles(remoteFiles: Omit<FileRecord, 'createdAt' | 'updatedAt'>[]): Promise<number> {
+    const db = await getDb();
+    let importedCount = 0;
+    for (const file of remoteFiles) {
+      if (!file.telegramMessageId) continue;
+      const existing = await db.getFirstAsync<{ id: string }>(
+        `SELECT id FROM files WHERE id = ? OR (telegram_message_id = ? AND telegram_channel_id = ?) LIMIT 1`,
+        [file.id, file.telegramMessageId, file.telegramChannelId]
+      );
+      if (!existing) {
+        await this.insertFile(file);
+        importedCount++;
+      }
+    }
+    return importedCount;
+  },
+
+  async updateLocalCachePath(fileId: string, localCachePath: string): Promise<void> {
+    const db = await getDb();
+    await db.runAsync(
+      `UPDATE files SET local_cache_path = ?, updated_at = ? WHERE id = ?`,
+      [localCachePath, Date.now(), fileId]
+    );
+  },
+
   async toggleFavorite(fileId: string): Promise<boolean> {
     const db = await getDb();
     const file = await this.getFileById(fileId);

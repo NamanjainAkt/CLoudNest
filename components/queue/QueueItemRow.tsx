@@ -85,6 +85,8 @@ export const QueueItemRow = memo<QueueItemRowProps>(({
                 ? `${sizeMB} MB • Completed`
                 : item.status === 'failed'
                 ? (item.errorMessage ? `Failed: ${item.errorMessage}` : 'Upload Failed • Tap retry')
+                : item.status === 'pending'
+                ? `0.0 MB of ${sizeMB} MB • Queued (Waiting for slot)`
                 : `${(item.fileSize * item.progress / (1024 * 1024)).toFixed(1)} MB of ${sizeMB} MB • ${percentText}%`}
             </Text>
           </View>
@@ -92,7 +94,7 @@ export const QueueItemRow = memo<QueueItemRowProps>(({
 
         {/* Action Controls */}
         <View style={styles.actionControls}>
-          {item.status === 'uploading' && (
+          {(item.status === 'uploading' || item.status === 'pending') && (
             <TouchableOpacity
               onPress={() => onPause(item.id)}
               style={[styles.circleAction, { backgroundColor: colors.surfaceContainerHigh }]}
@@ -177,7 +179,11 @@ export const QueueItemRow = memo<QueueItemRowProps>(({
             },
           ]}
         >
-          {item.status === 'uploading' ? (item.speed || 'Calculating...') : item.status.toUpperCase()}
+          {item.status === 'uploading'
+            ? (item.speed || 'Calculating...')
+            : item.status === 'pending'
+            ? 'QUEUED'
+            : item.status.toUpperCase()}
         </Text>
       </View>
     </View>

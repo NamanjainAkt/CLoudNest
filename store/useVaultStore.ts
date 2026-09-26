@@ -9,6 +9,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 
 interface VaultState {
   isInitialized: boolean;
+  isSyncing: boolean;
   session: TelegramSession | null;
   storageStats: StorageBreakdown;
   recentFiles: FileRecord[];
@@ -19,6 +20,7 @@ interface VaultState {
 
   // Actions
   initialize: () => Promise<void>;
+  syncWithTelegramCloud: () => Promise<number>;
   setSession: (session: TelegramSession | null) => void;
   loadVaultData: () => Promise<void>;
   setCurrentFolderId: (folderId: string | null) => void;
@@ -46,6 +48,7 @@ interface VaultState {
 
 export const useVaultStore = create<VaultState>((set, get) => ({
   isInitialized: false,
+  isSyncing: false,
   session: null,
   storageStats: {
     totalUsedBytes: 0,
@@ -69,12 +72,31 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       const existingSession = await MTProtoClient.init();
       if (existingSession) {
         set({ session: existingSession });
+        get().syncWithTelegramCloud().catch((err) => {
+          console.warn('Background sync error on init:', err);
+        });
       }
       await get().loadVaultData();
       set({ isInitialized: true });
     } catch (err) {
       console.error('VaultStore init error:', err);
       set({ isInitialized: true });
+    }
+  },
+
+  syncWithTelegramCloud: async () => {
+    set({ isSyncing: true });
+    try {
+      const channelId = get().session?.channelId;
+      const remoteFiles = await MTProtoClient.syncFilesFromChannel(channelId);
+      const count = await FileDao.syncRemoteFiles(remoteFiles);
+      await get().loadVaultData();
+      return count;
+    } catch (err) {
+      console.error('syncWithTelegramCloud error:', err);
+      throw err;
+    } finally {
+      set({ isSyncing: false });
     }
   },
 
@@ -187,9 +209,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     const newItem: UploadQueueItem = {
       ...item,
       id: `queue_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      status: 'uploading',
-      progress: 0.05,
-      currentChunk: 1,
+      status: 'pending',
+      progress: 0.0,
+      currentChunk: 0,
       speed: '0 MB/s',
       retryCount: 0,
       createdAt: Date.now(),
@@ -205,9 +227,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     const newItems: UploadQueueItem[] = items.map((item, index) => ({
       ...item,
       id: `queue_${Date.now()}_${Math.random().toString(36).slice(2, 7)}_${index}`,
-      status: 'uploading',
-      progress: 0.05,
-      currentChunk: 1,
+      status: 'pending',
+      progress: 0.0,
+      currentChunk: 0,
       speed: '0 MB/s',
       retryCount: 0,
       createdAt: Date.now() + index,
@@ -225,6 +247,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
         item.id === id
           ? {
               ...item,
+              status: item.status === 'paused' ? 'paused' : 'uploading',
               progress,
               currentChunk,
               speed,

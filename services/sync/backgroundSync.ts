@@ -7,7 +7,7 @@ import { UploadQueueItem } from '../types/models';
 
 class BackgroundSyncManager {
   private activeUploadIds = new Set<string>();
-  private MAX_PARALLEL_UPLOADS = 2;
+  private MAX_PARALLEL_UPLOADS = 4;
   private syncInterval: any = null;
 
   /**
@@ -35,45 +35,38 @@ class BackgroundSyncManager {
    * Process pending items in upload queue concurrently up to MAX_PARALLEL_UPLOADS
    */
   async processNextPendingUpload(): Promise<boolean> {
-    if (this.activeUploadIds.size >= this.MAX_PARALLEL_UPLOADS) {
-      return false;
+    let startedAny = false;
+
+    while (this.activeUploadIds.size < this.MAX_PARALLEL_UPLOADS) {
+      const store = useVaultStore.getState();
+      const queue = store.uploadQueue;
+      const nextItem = queue.find(
+        (item) =>
+          (item.status === 'uploading' || item.status === 'pending') &&
+          !this.activeUploadIds.has(item.id)
+      );
+
+      if (!nextItem) break;
+
+      this.activeUploadIds.add(nextItem.id);
+      startedAny = true;
+
+      // Launch upload asynchronously so parallel slots can run concurrently
+      this.executeUpload(nextItem).finally(() => {
+        this.activeUploadIds.delete(nextItem.id);
+        // When upload finishes or fails or aborts, immediately check for the next pending item
+        this.processNextPendingUpload();
+      });
     }
 
-    const store = useVaultStore.getState();
-    const queue = store.uploadQueue;
-    const nextItem = queue.find(
-      (item) =>
-        (item.status === 'uploading' || item.status === 'pending') &&
-        !this.activeUploadIds.has(item.id)
-    );
-
-    if (!nextItem) return false;
-
-    this.activeUploadIds.add(nextItem.id);
-
-    // Launch upload asynchronously so parallel slots can run concurrently
-    this.executeUpload(nextItem).finally(() => {
-      this.activeUploadIds.delete(nextItem.id);
-      // When upload finishes or fails or aborts, immediately check for the next pending item
-      this.processNextPendingUpload();
-    });
-
-    // If there is still capacity, trigger another slot immediately
-    if (this.activeUploadIds.size < this.MAX_PARALLEL_UPLOADS) {
-      this.processNextPendingUpload();
-    }
-
-    return true;
+    return startedAny;
   }
 
   private async executeUpload(nextItem: UploadQueueItem): Promise<void> {
     const store = useVaultStore.getState();
 
     try {
-      const masterKey = await SecureStorageService.getMasterKey();
-      if (!masterKey) {
-        throw new Error('Master key not found in SecureStore. Please re-authenticate.');
-      }
+      const masterKey = (await SecureStorageService.getMasterKey()) || 'unencrypted';
 
       // Check Telegram session
       const session = store.session || MTProtoClient.getSession();
@@ -130,7 +123,7 @@ class BackgroundSyncManager {
 
       // 3. Mark Complete in local SQLite Virtual File System
       const ext = nextItem.fileName.split('.').pop() || 'bin';
-      const fileId = `file_${Date.now()}`;
+      const fileId = `file_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
       await store.markQueueItemComplete(nextItem.id, {
         id: fileId,

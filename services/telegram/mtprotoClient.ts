@@ -1,7 +1,7 @@
 // services/telegram/mtprotoClient.ts
 import { TELEGRAM_DATA_CENTERS, AuthSendCodeResponse, TelegramUser, MTProtoUploadResult } from './types';
 import { SecureStorageService } from '../crypto/secureStore';
-import { TelegramSession } from '../types/models';
+import { TelegramSession, FileRecord } from '../types/models';
 import { GramJSClient } from './gramjsClient';
 
 class NativeMTProtoClient {
@@ -150,6 +150,19 @@ class NativeMTProtoClient {
       shouldAbort,
       mimeType
     );
+  }
+
+  async syncFilesFromChannel(channelId?: string): Promise<Omit<FileRecord, 'createdAt' | 'updatedAt'>[]> {
+    return await GramJSClient.syncFilesFromChannel(channelId);
+  }
+
+  async downloadFile(
+    channelId?: string | null,
+    messageId?: number | null,
+    fileName?: string,
+    onProgress?: (progress: number) => void
+  ): Promise<string> {
+    return await GramJSClient.downloadFile(channelId, messageId, fileName, onProgress);
   }
 
   async signOut(): Promise<void> {

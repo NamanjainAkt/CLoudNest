@@ -7,6 +7,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Plus, FileText, Image, FolderArchive, Music } from 'lucide-react-native';
@@ -33,6 +34,8 @@ export default function HomeDashboardScreen() {
     createFolder,
     addUploadQueueItem,
     addUploadQueueItems,
+    isSyncing,
+    syncWithTelegramCloud,
   } = useVaultStore();
 
   const [sheetVisible, setSheetVisible] = useState(false);
@@ -133,6 +136,18 @@ export default function HomeDashboardScreen() {
       <ScrollView
         contentContainerStyle={[styles.scrollContent, { paddingBottom: 90 }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isSyncing}
+            onRefresh={() => {
+              syncWithTelegramCloud().catch((err) => {
+                console.warn('[Home] Pull-to-refresh sync failed:', err);
+              });
+            }}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
         {/* Compact Storage Card */}
         <StorageMeterCard

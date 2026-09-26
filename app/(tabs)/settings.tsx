@@ -25,6 +25,7 @@ import {
   Sun,
   ChevronRight,
   Info,
+  RefreshCw,
 } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { TopHeader } from '../../components/common/TopHeader';
@@ -39,7 +40,7 @@ import { CustomConfirmDialog } from '../../components/common/CustomConfirmDialog
 export default function SettingsScreen() {
   const { colors, typography, radii, mode, toggleTheme } = useTheme();
   const router = useRouter();
-  const { session, storageStats, signOut } = useVaultStore();
+  const { session, storageStats, signOut, syncWithTelegramCloud, isSyncing } = useVaultStore();
   const apiCreds = MTProtoClient.getApiCredentials();
 
   const userInitials = session?.accountName
@@ -63,11 +64,35 @@ export default function SettingsScreen() {
   const [clearCacheLoading, setClearCacheLoading] = useState(false);
   const [signOutVisible, setSignOutVisible] = useState(false);
   const [signOutLoading, setSignOutLoading] = useState(false);
+  const [syncLoading, setSyncLoading] = useState(false);
   const [infoDialog, setInfoDialog] = useState<{ visible: boolean; title: string; message: string }>({
     visible: false,
     title: '',
     message: '',
   });
+
+  const handleSyncCloud = async () => {
+    try {
+      setSyncLoading(true);
+      const count = await syncWithTelegramCloud();
+      setSyncLoading(false);
+      setInfoDialog({
+        visible: true,
+        title: 'Telegram Cloud Sync',
+        message:
+          count > 0
+            ? `Synced ${count} new files from Telegram Cloud.`
+            : 'All files are up to date with Telegram Cloud.',
+      });
+    } catch (err: any) {
+      setSyncLoading(false);
+      setInfoDialog({
+        visible: true,
+        title: 'Cloud Sync Error',
+        message: err?.message || 'Failed to sync files from Telegram Cloud.',
+      });
+    }
+  };
 
   const refreshCacheMetrics = async () => {
     const m = await CacheManager.getMetrics();
@@ -392,6 +417,42 @@ export default function SettingsScreen() {
                 activeOpacity={0.7}
               >
                 <Text style={[typography.labelSm, { color: colors.primary }]}>Clear</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Sync with Telegram Cloud Row */}
+            <View style={[styles.cacheRow, { borderTopColor: colors.borderSubtle, borderTopWidth: 1 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 10 }}>
+                <View
+                  style={[
+                    styles.smallIconCircle,
+                    { backgroundColor: colors.tertiaryContainer + '25' },
+                  ]}
+                >
+                  <RefreshCw size={16} color={colors.tertiary} />
+                </View>
+                <View style={{ marginLeft: 10, flex: 1 }}>
+                  <Text style={[typography.bodyMd, { color: colors.onSurface, fontWeight: '500' }]}>
+                    Sync with Telegram Cloud
+                  </Text>
+                  <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 11 }]}>
+                    Pull & recover files from Telegram cloud
+                  </Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                onPress={handleSyncCloud}
+                disabled={isSyncing || syncLoading}
+                style={[
+                  styles.clearCacheBtn,
+                  { backgroundColor: colors.surfaceContainerHigh },
+                ]}
+                activeOpacity={0.7}
+              >
+                <Text style={[typography.labelSm, { color: colors.primary }]}>
+                  {isSyncing || syncLoading ? 'Syncing...' : 'Sync'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>

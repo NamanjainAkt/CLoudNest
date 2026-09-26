@@ -63,6 +63,10 @@ export default function CreateVaultScreen() {
           phone: params.phone || '',
         });
         setSession(session);
+        // Trigger cloud recovery in background so onboarding does not stall
+        useVaultStore.getState().syncWithTelegramCloud().catch((err) => {
+          console.warn('Initial cloud sync error during onboarding:', err);
+        });
         setStep(4);
         setProgressPercent(100);
 

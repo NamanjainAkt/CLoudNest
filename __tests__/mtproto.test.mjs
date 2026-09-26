@@ -275,11 +275,11 @@ test('Telegram MTProto Transport & Edge Node Routing', async (t) => {
     assert.strictEqual(speedBadge, '↑ 5.0 MB/s');
   });
 
-  await t.test('Parallel upload slot manager respects MAX_PARALLEL_UPLOADS = 2', () => {
+  await t.test('Parallel upload slot manager respects MAX_PARALLEL_UPLOADS = 4', () => {
     class MockBackgroundSync {
       constructor() {
         this.activeUploadIds = new Set();
-        this.MAX_PARALLEL_UPLOADS = 2;
+        this.MAX_PARALLEL_UPLOADS = 4;
         this.completed = [];
       }
 
@@ -302,28 +302,141 @@ test('Telegram MTProto Transport & Edge Node Routing', async (t) => {
     const sync = new MockBackgroundSync();
     assert.strictEqual(sync.canAcceptMore(), true);
 
-    // Start 1st upload
+    // Start 1st, 2nd, 3rd, and 4th uploads
     assert.strictEqual(sync.startUpload('item_1'), true);
-    assert.strictEqual(sync.activeUploadIds.size, 1);
-    assert.strictEqual(sync.canAcceptMore(), true);
-
-    // Start 2nd upload
     assert.strictEqual(sync.startUpload('item_2'), true);
-    assert.strictEqual(sync.activeUploadIds.size, 2);
+    assert.strictEqual(sync.startUpload('item_3'), true);
+    assert.strictEqual(sync.startUpload('item_4'), true);
+    assert.strictEqual(sync.activeUploadIds.size, 4);
     assert.strictEqual(sync.canAcceptMore(), false);
 
-    // 3rd upload must be rejected/queued until a slot frees up
-    assert.strictEqual(sync.startUpload('item_3'), false);
-    assert.strictEqual(sync.activeUploadIds.size, 2);
+    // 5th upload must be queued until a slot frees up
+    assert.strictEqual(sync.startUpload('item_5'), false);
+    assert.strictEqual(sync.activeUploadIds.size, 4);
 
     // Finish 1st upload -> frees a slot
     sync.finishUpload('item_1');
-    assert.strictEqual(sync.activeUploadIds.size, 1);
+    assert.strictEqual(sync.activeUploadIds.size, 3);
     assert.strictEqual(sync.canAcceptMore(), true);
 
-    // Now 3rd upload can start
-    assert.strictEqual(sync.startUpload('item_3'), true);
-    assert.strictEqual(sync.activeUploadIds.size, 2);
+    // Now 5th upload can start
+    assert.strictEqual(sync.startUpload('item_5'), true);
+    assert.strictEqual(sync.activeUploadIds.size, 4);
+  });
+
+  await t.test('Telegram Cloud channel matching reuses existing CloudNest channels', () => {
+    function matchesCloudNestVault(title) {
+      if (!title) return false;
+      return (
+        title === 'CloudNest Cloud Storage' ||
+        title === 'CloudNest Private Vault [E2EE]' ||
+        title.includes('CloudNest')
+      );
+    }
+
+    assert.strictEqual(matchesCloudNestVault('CloudNest Cloud Storage'), true);
+    assert.strictEqual(matchesCloudNestVault('CloudNest Private Vault [E2EE]'), true);
+    assert.strictEqual(matchesCloudNestVault('My Personal CloudNest'), true);
+    assert.strictEqual(matchesCloudNestVault('Random Telegram Group'), false);
+    assert.strictEqual(matchesCloudNestVault(''), false);
+  });
+
+  await t.test('Telegram Cloud remote files parsing and deduplication', () => {
+    // Simulated remote messages from Telegram
+    const mockMessages = [
+      {
+        id: 101,
+        message: 'important_doc.pdf',
+        media: {
+          document: {
+            size: 2048576,
+            mimeType: 'application/pdf',
+            attributes: [{ fileName: 'important_doc.pdf' }],
+          },
+        },
+      },
+      {
+        id: 102,
+        message: 'photo.jpg',
+        media: {
+          photo: {
+            sizes: [{ size: 524288 }],
+          },
+        },
+      },
+      {
+        id: 103,
+        message: '[CloudNest E2EE] SHA-256 Verified Encrypted Chunk',
+        media: {
+          document: {
+            size: 1048576,
+            mimeType: 'application/octet-stream',
+            attributes: [],
+          },
+        },
+      },
+    ];
+
+    function parseRemoteMessages(messages, targetPeer = '-100123456789') {
+      const files = [];
+      for (const msg of messages) {
+        const doc = msg.media?.document;
+        const photo = msg.media?.photo;
+        if (doc) {
+          let fileName = '';
+          if (doc.attributes) {
+            for (const attr of doc.attributes) {
+              if (attr.fileName) {
+                fileName = attr.fileName;
+                break;
+              }
+            }
+          }
+          if (!fileName && msg.message && !msg.message.startsWith('[CloudNest E2EE]')) {
+            fileName = msg.message;
+          }
+          if (!fileName) {
+            fileName = `file_${msg.id}`;
+          }
+          files.push({
+            id: `file_tg_${msg.id}`,
+            name: fileName,
+            size: doc.size,
+            telegramMessageId: msg.id,
+            telegramChannelId: targetPeer,
+          });
+        } else if (photo) {
+          files.push({
+            id: `file_tg_${msg.id}`,
+            name: msg.message || `photo_${msg.id}.jpg`,
+            size: photo.sizes?.[0]?.size || 0,
+            telegramMessageId: msg.id,
+            telegramChannelId: targetPeer,
+          });
+        }
+      }
+      return files;
+    }
+
+    const parsed = parseRemoteMessages(mockMessages);
+    assert.strictEqual(parsed.length, 3);
+    assert.strictEqual(parsed[0].name, 'important_doc.pdf');
+    assert.strictEqual(parsed[0].telegramMessageId, 101);
+    assert.strictEqual(parsed[1].name, 'photo.jpg');
+    assert.strictEqual(parsed[1].telegramMessageId, 102);
+    assert.strictEqual(parsed[2].name, 'file_103');
+    assert.strictEqual(parsed[2].telegramMessageId, 103);
+
+    // Test deduplication sync logic
+    const existingDbFileMessageIds = new Set([101]);
+    let newlyImported = 0;
+    for (const file of parsed) {
+      if (!existingDbFileMessageIds.has(file.telegramMessageId)) {
+        existingDbFileMessageIds.add(file.telegramMessageId);
+        newlyImported++;
+      }
+    }
+    assert.strictEqual(newlyImported, 2); // 102 and 103 newly imported, 101 skipped
   });
 });
 

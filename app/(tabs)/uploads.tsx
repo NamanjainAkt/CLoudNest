@@ -41,7 +41,7 @@ export default function UploadsScreen() {
 
   const filteredQueue = uploadQueue.filter((item) => {
     if (filter === 'all') return true;
-    if (filter === 'active') return item.status === 'uploading' || item.status === 'paused';
+    if (filter === 'active') return item.status === 'uploading' || item.status === 'pending' || item.status === 'paused';
     if (filter === 'completed') return item.status === 'completed';
     if (filter === 'failed') return item.status === 'failed';
     return true;

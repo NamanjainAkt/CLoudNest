@@ -14,7 +14,7 @@ import {
   TelegramUser,
   MTProtoUploadResult,
 } from './types';
-import { TelegramSession } from '../types/models';
+import { TelegramSession, FileRecord } from '../types/models';
 
 export function formatUploadSpeed(bytesPerSec: number): string {
   if (!bytesPerSec || bytesPerSec <= 0 || !isFinite(bytesPerSec)) {
@@ -207,7 +207,11 @@ class GramJSClientService {
       // Check existing dialogs to avoid creating duplicate vault channels
       const dialogs = await client.getDialogs({ limit: 30 });
       const existingChannel = dialogs.find(
-        (d) => d.isChannel && d.title === channelTitle
+        (d) =>
+          d.isChannel &&
+          (d.title === 'CloudNest Cloud Storage' ||
+            d.title === 'CloudNest Private Vault [E2EE]' ||
+            (d.title && d.title.includes('CloudNest')))
       );
 
       if (existingChannel && existingChannel.id) {
@@ -275,7 +279,10 @@ class GramJSClientService {
           d.id?.toString() === channelId ||
           d.entity?.id?.toString() === channelId ||
           `-100${d.entity?.id?.toString()}` === channelId ||
-          (d.isChannel && d.title === 'CloudNest Private Vault [E2EE]')
+          (d.isChannel &&
+            (d.title === 'CloudNest Cloud Storage' ||
+              d.title === 'CloudNest Private Vault [E2EE]' ||
+              (d.title && d.title.includes('CloudNest'))))
       );
       if (found && found.entity) {
         return await client.getInputEntity(found.entity);
@@ -717,6 +724,220 @@ class GramJSClientService {
       sha256Hash,
     };
   }
+
+  async syncFilesFromChannel(channelId?: string): Promise<Omit<FileRecord, 'createdAt' | 'updatedAt'>[]> {
+    const client = await this.ensureConnected();
+    const effectiveChannelId = channelId || this.currentSession?.channelId || 'me';
+    let resolvedPeer: any = 'me';
+    try {
+      resolvedPeer = await this.resolveTargetPeer(effectiveChannelId);
+    } catch {
+      resolvedPeer = 'me';
+    }
+    const peerStr = typeof resolvedPeer === 'string' ? resolvedPeer : effectiveChannelId;
+
+    const files: Omit<FileRecord, 'createdAt' | 'updatedAt'>[] = [];
+    const seenCompoundKeys = new Set<string>();
+
+    const parseMessageList = (msgList: any[], sourcePeer: string) => {
+      for (const msg of msgList) {
+        if (!msg || !msg.id) continue;
+        const compoundKey = `${sourcePeer}_${msg.id}`;
+        if (seenCompoundKeys.has(compoundKey)) continue;
+
+        const doc = (msg.media && (msg.media.document || msg.document)) || msg.document;
+        const photo = (msg.media && (msg.media.photo || msg.photo)) || msg.photo;
+
+        if (doc) {
+          seenCompoundKeys.add(compoundKey);
+          let fileName = '';
+          if (Array.isArray(doc.attributes)) {
+            for (const attr of doc.attributes) {
+              if (attr && attr.fileName) {
+                fileName = attr.fileName;
+                break;
+              }
+            }
+          }
+          if (!fileName && msg.message && typeof msg.message === 'string' && msg.message.trim()) {
+            const firstLine = msg.message.trim().split('\n')[0].trim();
+            if (!firstLine.startsWith('[CloudNest E2EE]')) {
+              fileName = firstLine;
+            }
+          }
+          if (!fileName) {
+            fileName = `file_${msg.id}`;
+          }
+
+          const ext = fileName.includes('.') ? fileName.split('.').pop() || 'dat' : '';
+          const size = Number(doc.size || 0);
+          const mimeType = doc.mimeType || 'application/octet-stream';
+          const sanitizedPeer = sourcePeer.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+          files.push({
+            id: `file_tg_${sanitizedPeer}_${msg.id}`,
+            folderId: null,
+            name: fileName,
+            size,
+            mimeType,
+            extension: ext,
+            telegramMessageId: msg.id,
+            telegramChannelId: sourcePeer,
+            isEncrypted: false,
+            encryptionIv: '',
+            sha256Hash: '',
+            localCachePath: null,
+            isFavorite: false,
+            isDeleted: false,
+          });
+        } else if (photo) {
+          seenCompoundKeys.add(compoundKey);
+          let fileName = '';
+          if (msg.message && typeof msg.message === 'string' && msg.message.trim()) {
+            const firstLine = msg.message.trim().split('\n')[0].trim();
+            if (!firstLine.startsWith('[CloudNest E2EE]')) {
+              fileName = firstLine;
+            }
+          }
+          if (!fileName) {
+            fileName = `photo_${msg.id}.jpg`;
+          }
+          if (!fileName.includes('.')) {
+            fileName += '.jpg';
+          }
+
+          const ext = fileName.split('.').pop() || 'jpg';
+          let photoSize = 0;
+          if (Array.isArray(photo.sizes)) {
+            const largest = photo.sizes[photo.sizes.length - 1];
+            photoSize = Number(largest?.size || (largest?.bytes ? largest.bytes.length : 0)) || 0;
+          }
+          const sanitizedPeer = sourcePeer.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+          files.push({
+            id: `file_tg_${sanitizedPeer}_${msg.id}`,
+            folderId: null,
+            name: fileName,
+            size: photoSize,
+            mimeType: 'image/jpeg',
+            extension: ext,
+            telegramMessageId: msg.id,
+            telegramChannelId: sourcePeer,
+            isEncrypted: false,
+            encryptionIv: '',
+            sha256Hash: '',
+            localCachePath: null,
+            isFavorite: false,
+            isDeleted: false,
+          });
+        }
+      }
+    };
+
+    // 1. Fetch from main resolved peer
+    try {
+      const msgs = await client.getMessages(resolvedPeer, { limit: 100 });
+      if (msgs && Array.isArray(msgs)) {
+        parseMessageList(msgs, peerStr);
+      }
+    } catch (err) {
+      console.warn('[GramJS] getMessages from targetPeer error:', err);
+    }
+
+    // 2. Fetch from Saved Messages ('me') if peer was a dedicated channel
+    if (peerStr !== 'me') {
+      try {
+        const savedMsgs = await client.getMessages('me', { limit: 100 });
+        if (savedMsgs && Array.isArray(savedMsgs)) {
+          parseMessageList(savedMsgs, 'me');
+        }
+      } catch (savedErr) {
+        console.warn('[GramJS] getMessages from Saved Messages error:', savedErr);
+      }
+    }
+
+    return files;
+  }
+
+  async downloadFile(
+    channelId?: string | null,
+    messageId?: number | null,
+    fileName?: string,
+    onProgress?: (progress: number) => void
+  ): Promise<string> {
+    if (!messageId) {
+      throw new Error('Message ID is required to download file from Telegram');
+    }
+
+    const client = await this.ensureConnected();
+    const effectiveChannelId = channelId || this.currentSession?.channelId || 'me';
+    let targetPeer: any = 'me';
+    try {
+      targetPeer = await this.resolveTargetPeer(effectiveChannelId);
+    } catch {
+      targetPeer = 'me';
+    }
+
+    let messages: any[] = [];
+    try {
+      messages = await client.getMessages(targetPeer, { ids: [messageId] });
+    } catch (err) {
+      console.warn('[GramJS] downloadFile getMessages error on targetPeer:', err);
+    }
+
+    if ((!messages || messages.length === 0 || !messages[0]) && effectiveChannelId !== 'me') {
+      try {
+        messages = await client.getMessages('me', { ids: [messageId] });
+      } catch (err) {
+        console.warn('[GramJS] downloadFile getMessages error on "me":', err);
+      }
+    }
+
+    const msg = messages && messages[0];
+    if (!msg || (!msg.media && !(msg as any).document && !(msg as any).photo)) {
+      throw new Error(`Telegram message #${messageId} not found or contains no downloadable media.`);
+    }
+
+    const downloaded = await client.downloadMedia(msg, {
+      progressCallback: (downloaded: any, total: any) => {
+        if (onProgress) {
+          const d = Number(downloaded || 0);
+          const t = Number(total || 0);
+          onProgress(t > 0 ? Math.min(1, d / t) : 0);
+        }
+      },
+    });
+
+    if (!downloaded) {
+      throw new Error(`Failed to download media for message #${messageId}`);
+    }
+
+    const cleanFileName = (fileName || `file_${messageId}`).replace(/[^a-zA-Z0-9._-]/g, '_');
+    const localPath = `${FileSystem.cacheDirectory}tg_${messageId}_${cleanFileName}`;
+
+    const downloadedBuf = Buffer.from(downloaded as any);
+    const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB safe streaming chunk buffer for Hermes JS heap
+
+    if (downloadedBuf.length <= CHUNK_SIZE) {
+      const base64 = downloadedBuf.toString('base64');
+      await FileSystem.writeAsStringAsync(localPath, base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+    } else {
+      await FileSystem.deleteAsync(localPath, { idempotent: true });
+      for (let offset = 0; offset < downloadedBuf.length; offset += CHUNK_SIZE) {
+        const chunkEnd = Math.min(offset + CHUNK_SIZE, downloadedBuf.length);
+        const chunkB64 = Buffer.from(downloadedBuf.subarray(offset, chunkEnd)).toString('base64');
+        await FileSystem.writeAsStringAsync(localPath, chunkB64, {
+          encoding: FileSystem.EncodingType.Base64,
+          append: true,
+        });
+      }
+    }
+
+    return localPath;
+  }
+
 
   async signOut(): Promise<void> {
     if (this.client) {

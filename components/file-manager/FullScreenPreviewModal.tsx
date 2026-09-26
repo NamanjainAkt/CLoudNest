@@ -10,6 +10,7 @@ import {
   Image,
   Alert,
   Share,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -32,6 +33,7 @@ import {
   RotateCcw,
   RotateCw,
   Cloud,
+  AlertCircle,
 } from 'lucide-react-native';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -39,6 +41,8 @@ import * as MediaLibrary from 'expo-media-library/legacy';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useTheme } from '../../theme/ThemeContext';
 import { FileRecord } from '../../services/types/models';
+import { MTProtoClient } from '../../services/telegram/mtprotoClient';
+import { FileDao } from '../../services/db/dbClient';
 
 interface FullScreenPreviewModalProps {
   visible: boolean;
@@ -355,6 +359,10 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
   const [zoomLevel, setZoomLevel] = useState(1);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [loadingContent, setLoadingContent] = useState(false);
+  const [currentLocalPath, setCurrentLocalPath] = useState<string | null>(file?.localCachePath || null);
+  const [isDownloadingFromCloud, setIsDownloadingFromCloud] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const ext = file?.extension?.toLowerCase() || '';
   const mime = file?.mimeType?.toLowerCase() || '';
@@ -376,11 +384,70 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
       ['txt', 'md', 'json', 'js', 'ts', 'jsx', 'tsx', 'log', 'csv', 'xml', 'html', 'css', 'py', 'sql', 'sh', 'yaml', 'yml'].includes(ext)
     : false;
 
+  const triggerCloudDownload = async () => {
+    if (!file || !file.telegramMessageId) return;
+    setIsDownloadingFromCloud(true);
+    setDownloadError(null);
+    setDownloadProgress(0);
+    try {
+      const downloadedPath = await MTProtoClient.downloadFile(
+        file.telegramChannelId,
+        file.telegramMessageId,
+        file.name,
+        (progress) => {
+          setDownloadProgress(progress);
+        }
+      );
+      setCurrentLocalPath(downloadedPath);
+      file.localCachePath = downloadedPath;
+      setIsDownloadingFromCloud(false);
+      await FileDao.updateLocalCachePath(file.id, downloadedPath);
+    } catch (err: any) {
+      console.warn('[FullScreenPreviewModal] Cloud download error:', err);
+      setDownloadError(err?.message || 'Could not fetch file from Telegram Cloud');
+      setIsDownloadingFromCloud(false);
+    }
+  };
+
   useEffect(() => {
     let isMounted = true;
-    if (visible && file && isCodeOrText && file.localCachePath) {
+    async function checkLocalFile() {
+      if (!visible || !file) return;
+
+      let exists = false;
+      if (file.localCachePath) {
+        try {
+          const info = await FileSystem.getInfoAsync(file.localCachePath);
+          exists = info.exists;
+        } catch {}
+      }
+
+      if (exists) {
+        if (isMounted) {
+          setCurrentLocalPath(file.localCachePath || null);
+          setDownloadError(null);
+        }
+        return;
+      }
+
+      if (file.telegramMessageId) {
+        triggerCloudDownload();
+      }
+    }
+
+    checkLocalFile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [visible, file]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const activePath = currentLocalPath || file?.localCachePath;
+    if (visible && file && isCodeOrText && activePath && !isDownloadingFromCloud) {
       setLoadingContent(true);
-      FileSystem.readAsStringAsync(file.localCachePath)
+      FileSystem.readAsStringAsync(activePath)
         .then((content) => {
           if (isMounted) {
             setTextContent(content);
@@ -399,16 +466,17 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [visible, file, isCodeOrText]);
+  }, [visible, file, isCodeOrText, currentLocalPath, isDownloadingFromCloud]);
 
   if (!file) return null;
 
   const handleShare = async () => {
     try {
-      if (file.localCachePath) {
+      const activePath = currentLocalPath || file.localCachePath;
+      if (activePath) {
         const canShare = await Sharing.isAvailableAsync();
         if (canShare) {
-          await Sharing.shareAsync(file.localCachePath, {
+          await Sharing.shareAsync(activePath, {
             mimeType: file.mimeType,
             dialogTitle: `Share ${file.name}`,
           });
@@ -427,13 +495,14 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
 
   const handleDownload = async () => {
     try {
+      const activePath = currentLocalPath || file.localCachePath;
       const isMedia = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'mp4', 'mov', 'mkv', 'webm', '3gp'].includes(ext);
 
-      if (isMedia && file.localCachePath) {
+      if (isMedia && activePath) {
         try {
           const perm = await MediaLibrary.requestPermissionsAsync();
           if (perm.granted || perm.status === 'granted') {
-            await MediaLibrary.saveToLibraryAsync(file.localCachePath);
+            await MediaLibrary.saveToLibraryAsync(activePath);
             Alert.alert('Download Complete', 'Saved to your device gallery!');
             return;
           }
@@ -442,19 +511,20 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
         }
       }
 
-      if (file.localCachePath) {
+      if (activePath) {
         const canShare = await Sharing.isAvailableAsync();
         if (canShare) {
-          await Sharing.shareAsync(file.localCachePath, {
+          await Sharing.shareAsync(activePath, {
             mimeType: file.mimeType,
             dialogTitle: `Save / Export ${file.name}`,
           });
           Alert.alert('Download Ready', 'File is downloaded and ready to save/export.');
           return;
         }
+        Alert.alert('Download Ready', 'File is downloaded and saved in your device storage.');
+      } else {
+        Alert.alert('Download Failed', 'Could not retrieve file from Telegram Cloud.');
       }
-
-      Alert.alert('Download Ready', 'File is downloaded and saved in your device storage.');
     } catch (err: any) {
       console.error('Download error:', err);
       Alert.alert('Download Error', err?.message || 'Failed to download file.');
@@ -519,55 +589,93 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
 
         {/* Content Viewer Body */}
         <View style={styles.contentArea}>
-          {isImage ? (
-            <View style={styles.imageViewerWrapper}>
-              <ScrollView
-                maximumZoomScale={3}
-                minimumZoomScale={1}
-                contentContainerStyle={styles.imageScrollContent}
-                showsVerticalScrollIndicator={false}
-                showsHorizontalScrollIndicator={false}
-              >
-                <Image
-                  source={{ uri: file.localCachePath || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80' }}
-                  style={[
-                    styles.imagePreview,
-                    { transform: [{ scale: zoomLevel }] },
-                  ]}
-                  resizeMode="contain"
-                />
-              </ScrollView>
-
-              {/* Floating Zoom Bar */}
-              <View
-                style={[
-                  styles.floatingControls,
-                  { backgroundColor: colors.surfaceContainerHighest + 'EE' },
-                ]}
-              >
-                <TouchableOpacity
-                  onPress={() => setZoomLevel((z) => Math.max(0.75, z - 0.25))}
-                  style={styles.zoomButton}
-                  accessibilityLabel="Zoom out"
+          {isDownloadingFromCloud ? (
+            <View style={styles.cloudDownloadWrapper}>
+              <View style={[styles.cloudDownloadCircle, { backgroundColor: colors.surfaceContainerHighest }]}>
+                <Cloud size={38} color={colors.primary} />
+              </View>
+              <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 18 }} />
+              <Text style={[typography.headlineSm, { color: colors.onSurface, marginTop: 14, textAlign: 'center' }]}>
+                Fetching from Telegram Cloud...
+              </Text>
+              <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, marginTop: 6, fontSize: 11 }]}>
+                {downloadProgress > 0 ? `${Math.round(downloadProgress * 100)}% downloaded` : 'Connecting to personal cloud…'}
+              </Text>
+            </View>
+          ) : isImage ? (
+            currentLocalPath || file.localCachePath ? (
+              <View style={styles.imageViewerWrapper}>
+                <ScrollView
+                  maximumZoomScale={3}
+                  minimumZoomScale={1}
+                  contentContainerStyle={styles.imageScrollContent}
+                  showsVerticalScrollIndicator={false}
+                  showsHorizontalScrollIndicator={false}
                 >
-                  <ZoomOut size={16} color={colors.onSurface} />
-                </TouchableOpacity>
-                <Text style={[typography.monoSm, { color: colors.onSurface, marginHorizontal: 8 }]}>
-                  {Math.round(zoomLevel * 100)}%
+                  <Image
+                    source={{ uri: (currentLocalPath || file.localCachePath)! }}
+                    style={[
+                      styles.imagePreview,
+                      { transform: [{ scale: zoomLevel }] },
+                    ]}
+                    resizeMode="contain"
+                  />
+                </ScrollView>
+
+                {/* Floating Zoom Bar */}
+                <View
+                  style={[
+                    styles.floatingControls,
+                    { backgroundColor: colors.surfaceContainerHighest + 'EE' },
+                  ]}
+                >
+                  <TouchableOpacity
+                    onPress={() => setZoomLevel((z) => Math.max(0.75, z - 0.25))}
+                    style={styles.zoomButton}
+                    accessibilityLabel="Zoom out"
+                  >
+                    <ZoomOut size={16} color={colors.onSurface} />
+                  </TouchableOpacity>
+                  <Text style={[typography.monoSm, { color: colors.onSurface, marginHorizontal: 8 }]}>
+                    {Math.round(zoomLevel * 100)}%
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setZoomLevel((z) => Math.min(3, z + 0.25))}
+                    style={styles.zoomButton}
+                    accessibilityLabel="Zoom in"
+                  >
+                    <ZoomIn size={16} color={colors.onSurface} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.cloudDownloadWrapper}>
+                <AlertCircle size={44} color={colors.error} />
+                <Text style={[typography.headlineSm, { color: colors.onSurface, marginTop: 14 }]}>
+                  Preview Unavailable
+                </Text>
+                <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, marginTop: 6, fontSize: 11, textAlign: 'center' }]}>
+                  {downloadError || 'Could not download preview from Telegram Cloud.'}
                 </Text>
                 <TouchableOpacity
-                  onPress={() => setZoomLevel((z) => Math.min(3, z + 0.25))}
-                  style={styles.zoomButton}
-                  accessibilityLabel="Zoom in"
+                  onPress={triggerCloudDownload}
+                  style={{
+                    backgroundColor: colors.primary,
+                    marginTop: 16,
+                    paddingHorizontal: 16,
+                    paddingVertical: 8,
+                    borderRadius: radii.full,
+                  }}
+                  activeOpacity={0.8}
                 >
-                  <ZoomIn size={16} color={colors.onSurface} />
+                  <Text style={[typography.labelSm, { color: colors.onPrimary }]}>Retry Download</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          ) : isVideo && file.localCachePath ? (
-            <VideoPreviewView sourceUri={file.localCachePath} />
-          ) : isAudio && file.localCachePath ? (
-            <AudioPreviewView sourceUri={file.localCachePath} file={file} />
+            )
+          ) : isVideo && (currentLocalPath || file.localCachePath) ? (
+            <VideoPreviewView sourceUri={(currentLocalPath || file.localCachePath)!} />
+          ) : isAudio && (currentLocalPath || file.localCachePath) ? (
+            <AudioPreviewView sourceUri={(currentLocalPath || file.localCachePath)!} file={file} />
           ) : isCodeOrText ? (
             <CodePreviewView
               file={file}
@@ -837,6 +945,18 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1,
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cloudDownloadWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  cloudDownloadCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
