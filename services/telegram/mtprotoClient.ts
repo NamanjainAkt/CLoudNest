@@ -161,6 +161,10 @@ class NativeMTProtoClient {
     await SecureStorageService.clearMasterKey();
   }
 
+  async deleteMessage(channelId?: string | null, messageId?: number | null): Promise<boolean> {
+    return await GramJSClient.deleteMessage(channelId, messageId);
+  }
+
   getSession(): TelegramSession | null {
     return this.currentSession;
   }

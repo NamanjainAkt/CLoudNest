@@ -66,12 +66,9 @@ export default function CreateVaultScreen() {
         setStep(4);
         setProgressPercent(100);
 
-        // Step 4: Complete and navigate to recovery phrase backup
+        // Step 4: Complete and navigate directly to CloudNest tabs
         await new Promise((r) => setTimeout(r, 600));
-        router.replace({
-          pathname: '/(auth)/backup-phrase',
-          params: { masterKey },
-        } as any);
+        router.replace('/(tabs)');
       } catch (err: any) {
         console.error('Vault setup error:', err);
         Alert.alert(

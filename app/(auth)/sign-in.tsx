@@ -304,18 +304,6 @@ export default function SignInScreen() {
               size="lg"
               style={{ marginTop: 16 }}
             />
-
-            {/* Restore from Mnemonic Button */}
-            <TouchableOpacity
-              onPress={() => setRestoreModalVisible(true)}
-              style={styles.restoreBtn}
-              activeOpacity={0.7}
-            >
-              <KeyRound size={14} color={colors.primary} style={{ marginRight: 6 }} />
-              <Text style={[typography.bodySm, { color: colors.primary, fontWeight: '600' }]}>
-                Restore Existing Vault with 12 Words
-              </Text>
-            </TouchableOpacity>
           </View>
 
           {/* Security Guarantee Card */}

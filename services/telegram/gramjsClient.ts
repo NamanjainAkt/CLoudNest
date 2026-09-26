@@ -393,9 +393,9 @@ class GramJSClientService {
     const sha256 = crypto.createHash('sha256');
     const md5 = crypto.createHash('md5');
 
-    // MTProto request pipelining: 4 concurrent invoke() calls overlap on the socket
-    const CONCURRENCY = Math.min(4, totalParts);
-    const MAX_QUEUE_BUFFER = 4;
+    // MTProto request pipelining: 6 concurrent invoke() calls overlap on the socket
+    const CONCURRENCY = Math.min(6, totalParts);
+    const MAX_QUEUE_BUFFER = 6;
 
     interface PreparedChunk {
       partIndex: number;
@@ -731,6 +731,24 @@ class GramJSClientService {
     await SecureStorageService.clearGramjsSession();
     await SecureStorageService.clearTelegramSession();
     await SecureStorageService.clearMasterKey();
+  }
+
+  async deleteMessage(channelId?: string | null, messageId?: number | null): Promise<boolean> {
+    if (!messageId || messageId <= 0) return false;
+    try {
+      const client = await this.ensureConnected();
+      let targetPeer: any = 'me';
+      try {
+        targetPeer = await this.resolveTargetPeer(channelId || this.currentSession?.channelId);
+      } catch {
+        targetPeer = 'me';
+      }
+      await client.deleteMessages(targetPeer, [messageId], { revoke: true });
+      return true;
+    } catch (err: any) {
+      console.warn(`[GramJS] Delete message #${messageId} error:`, err?.message || err);
+      return false;
+    }
   }
 
   isConnected(): boolean {

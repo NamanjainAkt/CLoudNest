@@ -5,6 +5,7 @@ import { FileDao, FolderDao, getDb } from '../services/db/dbClient';
 import { MTProtoClient } from '../services/telegram/mtprotoClient';
 import { SecureStorageService } from '../services/crypto/secureStore';
 import { BackgroundSync } from '../services/sync/backgroundSync';
+import * as FileSystem from 'expo-file-system/legacy';
 
 interface VaultState {
   isInitialized: boolean;
@@ -121,11 +122,37 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   },
 
   deletePermanently: async (fileId: string) => {
+    try {
+      const file = await FileDao.getFileById(fileId);
+      if (file) {
+        if (file.telegramMessageId) {
+          await MTProtoClient.deleteMessage(file.telegramChannelId, file.telegramMessageId);
+        }
+        if (file.localCachePath) {
+          await FileSystem.deleteAsync(file.localCachePath, { idempotent: true });
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to delete file from Telegram or cache:', err);
+    }
     await FileDao.deletePermanently(fileId);
     await get().loadVaultData();
   },
 
   emptyTrash: async () => {
+    try {
+      const trash = await FileDao.getTrashFiles();
+      for (const file of trash) {
+        if (file.telegramMessageId) {
+          await MTProtoClient.deleteMessage(file.telegramChannelId, file.telegramMessageId);
+        }
+        if (file.localCachePath) {
+          await FileSystem.deleteAsync(file.localCachePath, { idempotent: true });
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to empty trash from Telegram or cache:', err);
+    }
     await FileDao.emptyTrash();
     await get().loadVaultData();
   },
