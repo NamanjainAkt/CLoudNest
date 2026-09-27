@@ -33,7 +33,7 @@ The upload engine is refactored for maximum network throughput and minimal JS br
 - **Background & AppState Resumption**: Subscribes to React Native `AppState` transitions. When the app returns to `active`, any stalled or pending uploads are immediately detected and re-dispatched. Configured with Android `WAKE_LOCK`, `FOREGROUND_SERVICE`, and `FOREGROUND_SERVICE_DATA_SYNC` permissions.
 
 ## Telegram Cloud Sync & Reinstall Recovery (`gramjsClient.ts` + `dbClient.ts` + `useVaultStore.ts`)
-- **Automated Cloud Scanner**: Scans both dedicated vault channels and Saved Messages (`me`) via `client.getMessages({ limit: 100 })`.
+- **Automated Cloud Scanner**: Scans both dedicated vault channels and Saved Messages (`me`) via `client.getMessages({ limit: 100 })`. Filters out personal media in Saved Messages by explicitly requiring the `#CloudNest` tag to prevent polluting the vault with personal files.
 - **Channel Continuity**: Matches existing channels matching `CloudNest Cloud Storage`, `CloudNest Private Vault [E2EE]`, or any title containing `CloudNest` to guarantee continuity across app re-installs.
 - **Compound Deduplication**: Deduplicates remote files by `(telegram_channel_id, telegram_message_id)` compound keys and scopes primary keys (`file_tg_${sanitizedPeer}_${msg.id}`) to prevent cross-channel ID collisions.
 - **Multi-Touch Recovery Hooks**: Auto-syncs on initial login setup (`create-vault.tsx`), triggers on app boot if an active session exists (`useVaultStore.initialize()`), supports pull-to-refresh (`RefreshControl`) on the Home screen, and provides a manual "Sync with Telegram Cloud" action in Settings.
@@ -49,6 +49,6 @@ State: `isInitialized`, `session`, `storageStats`, `recentFiles[15]`, `folders`,
 
 ## Gaps
 
-- P0: queue ephemeral; no native OS background daemon (`expo-task-manager`); no resume from arbitrary chunk index; CTR/GCM metadata divergence (see `crypto-security.md`).
+- P0: no native OS background daemon (`expo-task-manager`); CTR/GCM metadata divergence (see `crypto-security.md`).
 - P1: N+1 folder stats; dead `upload_queue`/`app_settings` tables; taxonomy divergence; full-reload mutations.
 
