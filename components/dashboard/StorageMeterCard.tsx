@@ -25,10 +25,18 @@ export const StorageMeterCard: React.FC<StorageMeterCardProps> = ({ stats, onMan
   const totalUsed = stats.totalUsedBytes || 0;
   const isZero = totalUsed === 0;
 
+  const mediaBytes = stats.mediaBytes || 0;
+  const docsBytes = stats.docsBytes || 0;
+  const audioBytes = stats.audioBytes || 0;
+  const otherBytes = (stats.archivesBytes || 0) + (stats.otherBytes || 0);
+
   // Compute percentages strictly based on real data (no dummy fallback percentages)
-  const mediaPercent = isZero ? 0 : Math.round(((stats.mediaBytes || 0) / totalUsed) * 100);
-  const docsPercent = isZero ? 0 : Math.round(((stats.docsBytes || 0) / totalUsed) * 100);
-  const archivesPercent = isZero ? 0 : Math.max(0, 100 - mediaPercent - docsPercent);
+  const mediaPercent = isZero ? 0 : Number(((mediaBytes / totalUsed) * 100).toFixed(1));
+  const docsPercent = isZero ? 0 : Number(((docsBytes / totalUsed) * 100).toFixed(1));
+  const audioPercent = isZero ? 0 : Number(((audioBytes / totalUsed) * 100).toFixed(1));
+  const otherPercent = isZero
+    ? 0
+    : Math.max(0, Number((100 - mediaPercent - docsPercent - audioPercent).toFixed(1)));
 
   return (
     <View
@@ -88,11 +96,12 @@ export const StorageMeterCard: React.FC<StorageMeterCardProps> = ({ stats, onMan
         </Text>
       </View>
 
-      {/* 3-Segment Progress Bar */}
+      {/* Dynamic Multi-Segment Progress Bar */}
       <MultiSegmentProgress
         mediaPercent={mediaPercent}
         docsPercent={docsPercent}
-        archivesPercent={archivesPercent}
+        audioPercent={audioPercent}
+        otherPercent={otherPercent}
         style={{ marginVertical: 6 }}
       />
 
@@ -101,21 +110,30 @@ export const StorageMeterCard: React.FC<StorageMeterCardProps> = ({ stats, onMan
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: colors.primary }]} />
           <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 11 }]}>
-            Photos {formatBytes(stats.mediaBytes || 0)}
+            Photos & Videos {formatBytes(mediaBytes)}
           </Text>
         </View>
 
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: colors.secondaryContainer }]} />
           <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 11 }]}>
-            Documents {formatBytes(stats.docsBytes || 0)}
+            Documents {formatBytes(docsBytes)}
           </Text>
         </View>
+
+        {audioBytes > 0 && (
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: colors.tertiaryContainer }]} />
+            <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 11 }]}>
+              Audio {formatBytes(audioBytes)}
+            </Text>
+          </View>
+        )}
 
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: colors.tertiary }]} />
           <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 11 }]}>
-            Other Files {formatBytes(stats.archivesBytes || 0)}
+            Other Files {formatBytes(otherBytes)}
           </Text>
         </View>
       </View>

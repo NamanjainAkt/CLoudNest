@@ -1018,6 +1018,52 @@ Concurrency scales dynamically based on file size thresholds:
 5. **Awaited Onboarding Cloud Sync**:
    - In `create-vault.tsx`, setup now awaits `syncWithTelegramCloud()` during milestone step 4, guaranteeing all historical files are populated into SQLite before the user views the Home tab.
 
+---
+
+## 33. Unified Category Taxonomy & Storage Breakdown Progress Bar Architecture
+
+### 33.1 Problem Analysis: Disjoint Taxonomies & Missing "Other Files" Data
+1. **Broken "Other Files" Legend Display**:
+   - In `StorageMeterCard.tsx`, the "Other Files" legend item was bound to `stats.archivesBytes || 0`.
+   - Any files classified under `otherBytes` (e.g., `.apk`, `.exe`, `.bin`, `.iso`, unclassified extensions) or `audioBytes` were completely excluded, displaying `Other Files 0 B` even when hundreds of megabytes of other files existed.
+2. **Progress Bar Inaccuracy**:
+   - `MultiSegmentProgress` previously computed `archivesPercent` as an arbitrary remainder `100 - mediaPercent - docsPercent`, disconnected from the actual bytes of other files.
+   - When a user uploaded only other files (e.g., an APK), the progress bar showed 100% tertiary color, but the legend below read `Other Files 0 B`.
+3. **Disjoint Classification Schemes**:
+   - `getCategoryCounts()` dropped all other files (`apk`, `bin`, etc.) entirely, causing the "Files & Archives" category chip on the Home screen to read 0.
+   - `searchFiles()` only queried specific archive extensions (`zip`, `tar`, etc.), hiding APKs and generic files when the user tapped "Files & Archives".
+   - `getStorageStats()` only recognized a tiny subset of extensions, dumping modern media (`mkv`, `webm`, `gif`, `svg`), office docs (`pptx`, `json`, `csv`, `md`), and audio (`flac`, `ogg`) into unclassified buckets.
+
+### 33.2 Unified Canonical Taxonomy (`services/file/categories.ts`)
+Created a centralized, pure taxonomy engine shared between database querying, UI statistics, and search filtering:
+1. **Media (`MEDIA_EXTENSIONS`)**:
+   - Images: `jpg`, `jpeg`, `png`, `webp`, `gif`, `svg`, `heic`, `heif`, `bmp`, `ico`, `tiff`
+   - Videos: `mov`, `mp4`, `m4v`, `mkv`, `webm`, `avi`, `3gp`, `flv`, `wmv`, `ts`
+2. **Documents (`DOC_EXTENSIONS`)**:
+   - Documents & Sheets: `pdf`, `doc`, `docx`, `txt`, `rtf`, `odt`, `xls`, `xlsx`, `csv`
+   - Presentations & Code: `ppt`, `pptx`, `key`, `md`, `json`, `log`, `xml`, `html`, `css`, `js`, `ts`, `tsx`, `py`, `java`, `c`, `cpp`, `asc`
+3. **Audio (`AUDIO_EXTENSIONS`)**:
+   - Audio Formats: `mp3`, `wav`, `m4a`, `aac`, `flac`, `ogg`, `opus`, `wma`, `aiff`, `alac`, `mid`
+4. **Files & Archives (`ARCHIVE_EXTENSIONS` + All Others)**:
+   - Archives: `zip`, `tar`, `gz`, `enc`, `7z`, `rar`, `bz2`, `xz`, `iso`, `dmg`
+   - Unclassified Files: `apk`, `bin`, `exe`, and all other extensions fall reliably into this category, ensuring zero orphaned or uncounted files.
+
+### 33.3 Dynamic Multi-Segment Progress Bar (`ProgressBar.tsx` & `StorageMeterCard.tsx`)
+1. **Exact Byte Aggregation**:
+   - `otherBytes = (stats.archivesBytes || 0) + (stats.otherBytes || 0)`
+   - Computes exact proportional percentages for all categories: `mediaPercent`, `docsPercent`, `audioPercent`, and `otherPercent`.
+2. **Proportional Visual Segment Rendering**:
+   - `MultiSegmentProgress` dynamically renders only segments with `percent > 0`.
+   - When only other files are present (e.g. an APK), `otherPercent` evaluates to 100% and the legend accurately shows `Other Files X MB`.
+   - Audio is displayed both in the progress bar and in the legend when present.
+3. **Unified Home Screen Category Integration**:
+   - `FileDao.getCategoryCounts()` routes all non-media, non-doc, non-audio files to `archives`, matching the "Files & Archives" pill count.
+   - `FileDao.searchFiles()` queries `extension NOT IN (...)` for `archives`, allowing users to browse their uploaded APKs and other files seamlessly.
+
+### 33.4 EAS Registration & Android Production App Bundle (.aab)
+- Registered CloudNest with Expo Application Services (EAS) under project `@namanjainakt/cloudnest` (`ID: 346a300b-4f30-4c84-920a-a6f579930a88`).
+- Configured `eas.json` for production Android App Bundle (`app-bundle` / `.aab`) output with `autoIncrement: true`.
+
 
 
 

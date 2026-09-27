@@ -184,6 +184,24 @@ export const UploadQueueDao = {
   }
 };
 
+import {
+  MEDIA_EXTENSIONS,
+  DOC_EXTENSIONS,
+  AUDIO_EXTENSIONS,
+  ARCHIVE_EXTENSIONS,
+  normalizeExtension,
+  getFileCategory,
+} from '../file/categories';
+
+export {
+  MEDIA_EXTENSIONS,
+  DOC_EXTENSIONS,
+  AUDIO_EXTENSIONS,
+  ARCHIVE_EXTENSIONS,
+  normalizeExtension,
+  getFileCategory,
+};
+
 export const FileDao = {
   async getCategoryCounts(): Promise<{ documents: number; media: number; archives: number; audio: number }> {
     const db = await getDb();
@@ -195,15 +213,15 @@ export const FileDao = {
     let archives = 0;
     let audio = 0;
     for (const f of all) {
-      const ext = (f.extension || '').toLowerCase();
-      if (['pdf', 'doc', 'docx', 'txt', 'key', 'xlsx', 'asc'].includes(ext)) {
+      const category = getFileCategory(f.extension);
+      if (category === 'documents') {
         documents++;
-      } else if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'mov', 'mp4', 'm4v'].includes(ext)) {
+      } else if (category === 'media') {
         media++;
-      } else if (['zip', 'tar', 'gz', 'enc'].includes(ext)) {
-        archives++;
-      } else if (['mp3', 'wav', 'm4a', 'aac', 'flac'].includes(ext)) {
+      } else if (category === 'audio') {
         audio++;
+      } else {
+        archives++;
       }
     }
     return { documents, media, archives, audio };
@@ -267,13 +285,17 @@ export const FileDao = {
 
     if (category && category !== 'all') {
       if (category === 'documents') {
-        sql += ` AND (extension IN ('pdf', 'doc', 'docx', 'txt', 'key', 'xlsx', 'asc', 'csv', 'md', 'json', 'log'))`;
+        const quoted = DOC_EXTENSIONS.map((e) => `'${e}'`).join(',');
+        sql += ` AND (extension IN (${quoted}))`;
       } else if (category === 'images' || category === 'media') {
-        sql += ` AND (extension IN ('jpg', 'jpeg', 'png', 'webp', 'gif', 'mov', 'mp4', 'm4v', 'svg'))`;
-      } else if (category === 'archives') {
-        sql += ` AND (extension IN ('zip', 'tar', 'gz', 'enc', '7z', 'rar', 'bz2'))`;
+        const quoted = MEDIA_EXTENSIONS.map((e) => `'${e}'`).join(',');
+        sql += ` AND (extension IN (${quoted}))`;
       } else if (category === 'audio') {
-        sql += ` AND (extension IN ('mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg'))`;
+        const quoted = AUDIO_EXTENSIONS.map((e) => `'${e}'`).join(',');
+        sql += ` AND (extension IN (${quoted}))`;
+      } else if (category === 'archives') {
+        const knownOthers = [...DOC_EXTENSIONS, ...MEDIA_EXTENSIONS, ...AUDIO_EXTENSIONS].map((e) => `'${e}'`).join(',');
+        sql += ` AND (extension NOT IN (${knownOthers}))`;
       }
     }
 
@@ -471,15 +493,15 @@ export const FileDao = {
 
     for (const f of allFiles) {
       total += f.size;
-      const ext = f.extension.toLowerCase();
-      if (['jpg', 'jpeg', 'png', 'mov', 'mp4', 'webp'].includes(ext)) {
+      const ext = normalizeExtension(f.extension);
+      if (MEDIA_EXTENSIONS.includes(ext)) {
         media += f.size;
-      } else if (['pdf', 'doc', 'docx', 'txt', 'key', 'xlsx'].includes(ext)) {
+      } else if (DOC_EXTENSIONS.includes(ext)) {
         docs += f.size;
-      } else if (['zip', 'tar', 'gz', 'enc'].includes(ext)) {
-        archives += f.size;
-      } else if (['mp3', 'wav', 'm4a'].includes(ext)) {
+      } else if (AUDIO_EXTENSIONS.includes(ext)) {
         audio += f.size;
+      } else if (ARCHIVE_EXTENSIONS.includes(ext)) {
+        archives += f.size;
       } else {
         other += f.size;
       }

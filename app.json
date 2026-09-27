@@ -65,6 +65,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "346a300b-4f30-4c84-920a-a6f579930a88"
+      }
+    },
+    "owner": "namanjainakt"
   }
 }
