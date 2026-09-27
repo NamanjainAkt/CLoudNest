@@ -9,6 +9,25 @@ export async function getDb(): Promise<SQLite.SQLiteDatabase> {
   if (!databaseInstance) {
     databaseInstance = await SQLite.openDatabaseAsync('cloudnest_vault.db');
     await databaseInstance.execAsync(CREATE_TABLES_SQL);
+    await databaseInstance.execAsync(`
+      CREATE TABLE IF NOT EXISTS upload_queue_v2 (
+        id TEXT PRIMARY KEY,
+        targetFolderId TEXT,
+        filePath TEXT,
+        fileName TEXT,
+        fileSize INTEGER,
+        mimeType TEXT,
+        status TEXT,
+        progress REAL,
+        currentChunk INTEGER,
+        speed TEXT,
+        totalChunks INTEGER,
+        eta TEXT,
+        createdAt INTEGER,
+        updatedAt INTEGER,
+        retryCount INTEGER
+      );
+    `);
     await seedInitialDataIfNeeded(databaseInstance);
   }
   return databaseInstance;
@@ -25,6 +44,44 @@ async function seedInitialDataIfNeeded(db: SQLite.SQLiteDatabase) {
     );
   } catch {}
 }
+
+export const UploadQueueDao = {
+  async getAll(): Promise<UploadQueueItem[]> {
+    const db = await getDb();
+    const rows = await db.getAllAsync<any>('SELECT * FROM upload_queue_v2 ORDER BY createdAt ASC');
+    return rows;
+  },
+  async insert(item: UploadQueueItem): Promise<void> {
+    const db = await getDb();
+    await db.runAsync(
+      `INSERT INTO upload_queue_v2 (id, targetFolderId, filePath, fileName, fileSize, mimeType, status, progress, currentChunk, speed, totalChunks, eta, createdAt, updatedAt, retryCount)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        item.id, item.targetFolderId ?? null, item.filePath, item.fileName, item.fileSize, item.mimeType, item.status,
+        item.progress, item.currentChunk, item.speed, item.totalChunks, item.eta ?? null, item.createdAt, item.updatedAt, item.retryCount
+      ]
+    );
+  },
+  async update(id: string, partialItem: Partial<UploadQueueItem>): Promise<void> {
+    const db = await getDb();
+    const setClauses: string[] = [];
+    const values: any[] = [];
+    for (const [key, value] of Object.entries(partialItem)) {
+      setClauses.push(`${key} = ?`);
+      values.push(value === undefined ? null : value);
+    }
+    if (setClauses.length === 0) return;
+    values.push(id);
+    await db.runAsync(
+      `UPDATE upload_queue_v2 SET ${setClauses.join(', ')} WHERE id = ?`,
+      values
+    );
+  },
+  async delete(id: string): Promise<void> {
+    const db = await getDb();
+    await db.runAsync('DELETE FROM upload_queue_v2 WHERE id = ?', [id]);
+  }
+};
 
 export const FileDao = {
   async getCategoryCounts(): Promise<{ documents: number; media: number; archives: number; audio: number }> {

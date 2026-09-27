@@ -569,7 +569,8 @@ class GramJSClientService {
     ) => void,
     shouldAbort?: () => boolean,
     mimeType?: string,
-    customConcurrency?: number
+    customConcurrency?: number,
+    resumeFromChunk?: number
   ): Promise<MTProtoUploadResult> {
     const client = await this.ensureConnected();
     if (this.senderPool) {
@@ -612,8 +613,8 @@ class GramJSClientService {
     }
 
     const readyQueue: PreparedChunk[] = [];
-    let completedPartsCount = 0;
-    let uploadedBytesCount = 0;
+    let completedPartsCount = resumeFromChunk || 0;
+    let uploadedBytesCount = (resumeFromChunk || 0) * CHUNK_SIZE;
     let aborted = false;
     let producerDone = false;
     const consumerWaiters: (() => void)[] = [];
@@ -671,8 +672,8 @@ class GramJSClientService {
           return;
         }
 
-        let nextBlockStart = 0;
-        let nextPartIndex = 0;
+        let nextBlockStart = (resumeFromChunk || 0) * CHUNK_SIZE;
+        let nextPartIndex = resumeFromChunk || 0;
 
         while (nextPartIndex < totalParts) {
           if (aborted || (shouldAbort && shouldAbort())) {
@@ -1131,40 +1132,25 @@ class GramJSClientService {
       throw new Error(`Telegram message #${messageId} not found or contains no downloadable media.`);
     }
 
-    const downloaded = await client.downloadMedia(msg, {
-      progressCallback: (downloaded: any, total: any) => {
-        if (onProgress) {
-          const d = Number(downloaded || 0);
-          const t = Number(total || 0);
-          onProgress(t > 0 ? Math.min(1, d / t) : 0);
-        }
-      },
-    });
-
-    if (!downloaded) {
-      throw new Error(`Failed to download media for message #${messageId}`);
-    }
-
     const cleanFileName = (fileName || `file_${messageId}`).replace(/[^a-zA-Z0-9._-]/g, '_');
     const localPath = `${FileSystem.cacheDirectory}tg_${messageId}_${cleanFileName}`;
 
-    const downloadedBuf = Buffer.from(downloaded as any);
-    const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB safe streaming chunk buffer for Hermes JS heap
+    await FileSystem.deleteAsync(localPath, { idempotent: true });
 
-    if (downloadedBuf.length <= CHUNK_SIZE) {
-      const base64 = downloadedBuf.toString('base64');
-      await FileSystem.writeAsStringAsync(localPath, base64, {
+    let downloadedSize = 0;
+    const totalSize = msg.document?.size ? Number(msg.document.size) : 0;
+
+    for await (const chunk of client.iterDownload({ file: msg, requestSize: 512 * 1024 })) {
+      const chunkBuf = Buffer.from(chunk as any);
+      downloadedSize += chunkBuf.length;
+      
+      await FileSystem.writeAsStringAsync(localPath, chunkBuf.toString('base64'), {
         encoding: FileSystem.EncodingType.Base64,
+        append: true,
       });
-    } else {
-      await FileSystem.deleteAsync(localPath, { idempotent: true });
-      for (let offset = 0; offset < downloadedBuf.length; offset += CHUNK_SIZE) {
-        const chunkEnd = Math.min(offset + CHUNK_SIZE, downloadedBuf.length);
-        const chunkB64 = Buffer.from(downloadedBuf.subarray(offset, chunkEnd)).toString('base64');
-        await FileSystem.writeAsStringAsync(localPath, chunkB64, {
-          encoding: FileSystem.EncodingType.Base64,
-          append: true,
-        });
+
+      if (onProgress && totalSize > 0) {
+        onProgress(Math.min(1, downloadedSize / totalSize));
       }
     }
 

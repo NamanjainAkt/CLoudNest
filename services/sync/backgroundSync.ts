@@ -149,7 +149,9 @@ class BackgroundSyncManager {
           const item = useVaultStore.getState().uploadQueue.find((i) => i.id === nextItem.id);
           return !item || item.status === 'paused';
         },
-        nextItem.mimeType
+        nextItem.mimeType,
+        undefined,
+        nextItem.currentChunk
       );
 
       // Verify item wasn't paused or cancelled before final DB commit

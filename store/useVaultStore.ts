@@ -1,7 +1,7 @@
 // store/useVaultStore.ts
 import { create } from 'zustand';
 import { FileRecord, FolderRecord, UploadQueueItem, StorageBreakdown, TelegramSession } from '../services/types/models';
-import { FileDao, FolderDao, getDb } from '../services/db/dbClient';
+import { FileDao, FolderDao, getDb, UploadQueueDao } from '../services/db/dbClient';
 import { MTProtoClient } from '../services/telegram/mtprotoClient';
 import { SecureStorageService } from '../services/crypto/secureStore';
 import { BackgroundSync } from '../services/sync/backgroundSync';
@@ -77,7 +77,14 @@ export const useVaultStore = create<VaultState>((set, get) => ({
         });
       }
       await get().loadVaultData();
-      set({ isInitialized: true });
+      const dbQueue = await UploadQueueDao.getAll();
+      const queue = dbQueue.map(item => {
+        if (item.status === 'uploading') {
+          return { ...item, status: 'paused' as const, speed: '0 MB/s' };
+        }
+        return item;
+      });
+      set({ isInitialized: true, uploadQueue: queue });
     } catch (err) {
       console.error('VaultStore init error:', err);
       set({ isInitialized: true });
@@ -217,6 +224,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
+    await UploadQueueDao.insert(newItem);
     set((state) => ({ uploadQueue: [newItem, ...state.uploadQueue] }));
     setTimeout(() => {
       BackgroundSync.processNextPendingUpload();
@@ -235,6 +243,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       createdAt: Date.now() + index,
       updatedAt: Date.now() + index,
     }));
+    for (const newItem of newItems) {
+      await UploadQueueDao.insert(newItem);
+    }
     set((state) => ({ uploadQueue: [...newItems, ...state.uploadQueue] }));
     setTimeout(() => {
       BackgroundSync.processNextPendingUpload();
@@ -242,26 +253,32 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   },
 
   updateQueueItemProgress: (id, progress, currentChunk, speed, totalChunks, eta) => {
+    const item = get().uploadQueue.find(i => i.id === id);
+    if (!item) return;
+    const now = Date.now();
+    const shouldUpdateDb = progress >= 1.0 || (now - (item.updatedAt || 0) >= 5000);
+    const updatedFields: Partial<UploadQueueItem> = {
+      status: item.status === 'paused' ? 'paused' : 'uploading',
+      progress,
+      currentChunk,
+      speed,
+      eta: eta !== undefined ? eta : item.eta,
+      totalChunks: totalChunks !== undefined ? totalChunks : item.totalChunks,
+      updatedAt: now,
+    };
+    
+    if (shouldUpdateDb) {
+      UploadQueueDao.update(id, updatedFields).catch(err => console.error(err));
+    }
+
     set((state) => ({
-      uploadQueue: state.uploadQueue.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              status: item.status === 'paused' ? 'paused' : 'uploading',
-              progress,
-              currentChunk,
-              speed,
-              eta: eta !== undefined ? eta : item.eta,
-              totalChunks: totalChunks !== undefined ? totalChunks : item.totalChunks,
-              updatedAt: Date.now(),
-            }
-          : item
-      ),
+      uploadQueue: state.uploadQueue.map((i) => i.id === id ? { ...i, ...updatedFields } : i),
     }));
   },
 
   markQueueItemComplete: async (id, newFile) => {
     await FileDao.insertFile(newFile);
+    await UploadQueueDao.delete(id);
     set((state) => ({
       uploadQueue: state.uploadQueue.map((item) =>
         item.id === id
@@ -273,33 +290,38 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   },
 
   markQueueItemFailed: (id, error) => {
+    const fields = { status: 'failed' as const, errorMessage: error, speed: '0 MB/s', eta: undefined, updatedAt: Date.now() };
+    UploadQueueDao.update(id, fields).catch(() => {});
     set((state) => ({
       uploadQueue: state.uploadQueue.map((item) =>
-        item.id === id
-          ? { ...item, status: 'failed', errorMessage: error, speed: '0 MB/s', eta: undefined, updatedAt: Date.now() }
-          : item
+        item.id === id ? { ...item, ...fields } : item
       ),
     }));
   },
 
   cancelQueueItem: (id) => {
+    UploadQueueDao.delete(id).catch(() => {});
     set((state) => ({
       uploadQueue: state.uploadQueue.filter((item) => item.id !== id),
     }));
   },
 
   pauseQueueItem: (id) => {
+    const fields = { status: 'paused' as const, speed: '0 MB/s', eta: undefined, updatedAt: Date.now() };
+    UploadQueueDao.update(id, fields).catch(() => {});
     set((state) => ({
       uploadQueue: state.uploadQueue.map((item) =>
-        item.id === id ? { ...item, status: 'paused', speed: '0 MB/s', eta: undefined } : item
+        item.id === id ? { ...item, ...fields } : item
       ),
     }));
   },
 
   resumeQueueItem: (id) => {
+    const fields = { status: 'uploading' as const, speed: '0 MB/s', updatedAt: Date.now() };
+    UploadQueueDao.update(id, fields).catch(() => {});
     set((state) => ({
       uploadQueue: state.uploadQueue.map((item) =>
-        item.id === id ? { ...item, status: 'uploading', speed: '0 MB/s' } : item
+        item.id === id ? { ...item, ...fields } : item
       ),
     }));
     setTimeout(() => {
@@ -308,11 +330,17 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   },
 
   pauseAllUploads: () => {
-    set((state) => ({
-      uploadQueue: state.uploadQueue.map((item) =>
-        item.status === 'uploading' ? { ...item, status: 'paused', speed: '0 MB/s' } : item
-      ),
-    }));
+    set((state) => {
+      const newQueue = state.uploadQueue.map((item) => {
+        if (item.status === 'uploading') {
+          const fields = { status: 'paused' as const, speed: '0 MB/s', updatedAt: Date.now() };
+          UploadQueueDao.update(item.id, fields).catch(() => {});
+          return { ...item, ...fields };
+        }
+        return item;
+      });
+      return { uploadQueue: newQueue };
+    });
   },
 
   signOut: async () => {

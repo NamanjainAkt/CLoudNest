@@ -146,7 +146,8 @@ class NativeMTProtoClient {
     ) => void,
     shouldAbort?: () => boolean,
     mimeType?: string,
-    customConcurrency?: number
+    customConcurrency?: number,
+    resumeFromChunk?: number
   ): Promise<MTProtoUploadResult> {
     return await GramJSClient.uploadFileStreaming(
       filePath,
@@ -156,7 +157,8 @@ class NativeMTProtoClient {
       onProgress,
       shouldAbort,
       mimeType,
-      customConcurrency
+      customConcurrency,
+      resumeFromChunk
     );
   }
 
