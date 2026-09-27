@@ -9,6 +9,7 @@ import { CustomFile } from 'telegram/client/uploads';
 import { readBigIntFromBuffer, generateRandomBytes } from 'telegram/Helpers';
 import * as FileSystem from 'expo-file-system/legacy';
 import ReactNativeBlobUtil from 'react-native-blob-util';
+import { MTProtoSender } from 'telegram/network';
 import { SecureStorageService } from '../crypto/secureStore';
 import {
   AuthSendCodeResponse,
@@ -30,21 +31,28 @@ export function formatUploadSpeed(bytesPerSec: number): string {
   return `${Math.round(bytesPerSec)} B/s`;
 }
 
+export function formatEta(etaSec: number): string {
+  if (!etaSec || etaSec <= 0 || !isFinite(etaSec)) {
+    return '';
+  }
+  if (etaSec < 10) return '< 10s';
+  if (etaSec < 60) return `${etaSec}s`;
+  if (etaSec < 3600) {
+    const mins = Math.floor(etaSec / 60);
+    const secs = etaSec % 60;
+    return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+  }
+  const hours = Math.floor(etaSec / 3600);
+  const mins = Math.floor((etaSec % 3600) / 60);
+  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+}
+
 export function formatUploadEta(remainingBytes: number, bytesPerSec: number): string {
   if (!bytesPerSec || bytesPerSec <= 0 || !isFinite(bytesPerSec) || remainingBytes <= 0) {
     return '';
   }
   const seconds = Math.round(remainingBytes / bytesPerSec);
-  if (seconds < 5) return '< 5s';
-  if (seconds < 60) return `${seconds}s`;
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  if (mins < 60) {
-    return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
-  }
-  const hours = Math.floor(mins / 60);
-  const remMins = mins % 60;
-  return `${hours}h ${remMins}m`;
+  return formatEta(seconds);
 }
 
 export function getAdaptiveWorkerCount(fileSize: number): number {
@@ -63,10 +71,11 @@ export function getAdaptiveWorkerCount(fileSize: number): number {
 export class MtprotoSenderPool {
   private client: TelegramClient;
   private dcId: number;
-  private senders: any[] = [];
+  private senders: MTProtoSender[] = [];
   private poolSize: number;
   private rrIndex = 0;
   private initPromise: Promise<void> | null = null;
+  private exportedAuth: { id: any; bytes: any } | null = null;
 
   constructor(client: TelegramClient, dcId: number, poolSize = 4) {
     this.client = client;
@@ -81,7 +90,18 @@ export class MtprotoSenderPool {
     this.initPromise = (async () => {
       try {
         const clientAny = this.client as any;
-        const targetDc = this.dcId || clientAny.session?.dcId || 4;
+        const targetDc = clientAny.session?.dcId || this.dcId || 4;
+
+        // Handles authorization export once if client.session.dcId !== dcId
+        if (clientAny.session?.dcId && clientAny.session.dcId !== targetDc && !this.exportedAuth) {
+          try {
+            this.exportedAuth = await this.client.invoke(
+              new Api.auth.ExportAuthorization({ dcId: targetDc })
+            );
+          } catch (authErr) {
+            console.warn('[SenderPool] ExportAuthorization warning:', authErr);
+          }
+        }
 
         while (this.senders.length < this.poolSize) {
           try {
@@ -131,6 +151,10 @@ export class MtprotoSenderPool {
     }
   }
 
+  async invoke(request: any): Promise<any> {
+    return this.send(request);
+  }
+
   getPoolSize(): number {
     return this.senders.length;
   }
@@ -159,24 +183,25 @@ export async function readBinaryBlock(
     if (
       ReactNativeBlobUtil &&
       ReactNativeBlobUtil.fs &&
-      typeof ReactNativeBlobUtil.fs.readStream === 'function'
+      typeof ReactNativeBlobUtil.fs.slice === 'function' &&
+      typeof ReactNativeBlobUtil.fs.readFile === 'function' &&
+      ReactNativeBlobUtil.fs.dirs &&
+      ReactNativeBlobUtil.fs.dirs.CacheDir
     ) {
-      // In react-native-blob-util, reading 'ascii' yields array of byte numbers
-      // which converts to Buffer without Base64 encoding/decoding overhead.
+      const tempPath = `${ReactNativeBlobUtil.fs.dirs.CacheDir}/_disk_blk_${Date.now()}_${position}.bin`;
+      try {
+        await ReactNativeBlobUtil.fs.slice(cleanPath, tempPath, position, position + length);
+        const base64Data = await ReactNativeBlobUtil.fs.readFile(tempPath, 'base64');
+        return Buffer.from(base64Data, 'base64');
+      } finally {
+        if (ReactNativeBlobUtil.fs.unlink) {
+          ReactNativeBlobUtil.fs.unlink(tempPath).catch(() => {});
+        }
+      }
     }
   } catch {}
 
-  // 2. Direct binary fetch ArrayBuffer slice (Works across Hermes, React Native runtime, Web without base64 conversion)
-  try {
-    const fileUri = filePath.startsWith('file://') ? filePath : `file://${cleanPath}`;
-    const resp = await fetch(fileUri);
-    const blob = await resp.blob();
-    const slice = blob.slice(position, position + length);
-    const arrayBuf = await new Response(slice).arrayBuffer();
-    return Buffer.from(arrayBuf);
-  } catch {}
-
-  // 3. Fallback to FileSystem (base64 to Buffer) if fetch blob unavailable
+  // 2. Fallback to Expo FileSystem seeked read (only reads the specified 4 MB slice, not the whole file)
   const base64Chunk = await FileSystem.readAsStringAsync(filePath, {
     encoding: FileSystem.EncodingType.Base64,
     position,
@@ -639,6 +664,13 @@ class GramJSClientService {
     // Producer Loop: reads in 4 MB binary blocks, splits into eight 512 KB parts
     const producerLoop = async () => {
       try {
+        if (actualSize === 0) {
+          readyQueue.push({ partIndex: 0, buffer: Buffer.alloc(0), length: 0 });
+          producerDone = true;
+          wakeConsumers();
+          return;
+        }
+
         let nextBlockStart = 0;
         let nextPartIndex = 0;
 
@@ -771,15 +803,24 @@ class GramJSClientService {
               ? this.senderPool.send(req)
               : client.invoke(req);
 
-            await Promise.race([
-              sendPromise,
-              new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('SOCKET_TIMEOUT')), 15000)
-              ),
-            ]);
+            let timeoutId: any;
+            try {
+              await Promise.race([
+                sendPromise,
+                new Promise((_, reject) => {
+                  timeoutId = setTimeout(() => reject(new Error('SOCKET_TIMEOUT')), 15000);
+                }),
+              ]);
+            } finally {
+              if (timeoutId) clearTimeout(timeoutId);
+            }
 
             uploaded = true;
           } catch (uploadErr: any) {
+            if (aborted || (shouldAbort && shouldAbort())) {
+              aborted = true;
+              throw new Error('UPLOAD_ABORTED');
+            }
             retries++;
             if (retries >= 5) {
               throw new Error(`Failed to upload part ${i + 1}/${totalParts} after 5 retries: ${uploadErr?.message || uploadErr}`);
@@ -795,6 +836,10 @@ class GramJSClientService {
               await new Promise((r) => setTimeout(r, baseDelay + jitter));
             }
           }
+        }
+
+        if (aborted) {
+          throw new Error('UPLOAD_ABORTED');
         }
 
         if (!uploaded) {
@@ -1128,11 +1173,18 @@ class GramJSClientService {
 
 
   async signOut(): Promise<void> {
+    if (this.senderPool) {
+      try {
+        await this.senderPool.destroy();
+      } catch {}
+      this.senderPool = null;
+    }
     if (this.client) {
       try {
         await this.client.invoke(new Api.auth.LogOut());
         await this.client.disconnect();
       } catch {}
+      this.client = null;
     }
     this.connected = false;
     this.currentSession = null;

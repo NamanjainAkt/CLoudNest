@@ -7,7 +7,6 @@ import { UploadQueueItem } from '../types/models';
 
 class BackgroundSyncManager {
   private activeUploadIds = new Set<string>();
-  private MAX_PARALLEL_UPLOADS = 4;
   private syncInterval: any = null;
 
   /**
@@ -37,14 +36,14 @@ class BackgroundSyncManager {
    * - Files 10 - 500 MB: 2 simultaneous files
    * - Files < 10 MB: up to 6 simultaneous files
    */
-  getAdaptiveFileLimit(): number {
+  getAdaptiveConcurrencyLimit(): number {
     const store = useVaultStore.getState();
     const queue = store.uploadQueue;
     const activeOrPending = queue.filter(
       (item) => item.status === 'uploading' || item.status === 'pending'
     );
 
-    if (activeOrPending.length === 0) return 4;
+    if (activeOrPending.length === 0) return 6;
 
     const hasLarge = activeOrPending.some((item) => item.fileSize > 500 * 1024 * 1024);
     if (hasLarge) return 1;
@@ -55,12 +54,16 @@ class BackgroundSyncManager {
     return 6;
   }
 
+  getAdaptiveFileLimit(): number {
+    return this.getAdaptiveConcurrencyLimit();
+  }
+
   /**
    * Process pending items in upload queue concurrently with adaptive scheduling
    */
   async processNextPendingUpload(): Promise<boolean> {
     let startedAny = false;
-    const maxFiles = this.getAdaptiveFileLimit();
+    const maxFiles = this.getAdaptiveConcurrencyLimit();
 
     while (this.activeUploadIds.size < maxFiles) {
       const store = useVaultStore.getState();
