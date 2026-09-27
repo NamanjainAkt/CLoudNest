@@ -990,6 +990,7 @@ class GramJSClientService {
               continue; // Skip personal files not uploaded by CloudNest
             }
           }
+        }
         if (doc) {
           seenCompoundKeys.add(compoundKey);
           let fileName = '';
