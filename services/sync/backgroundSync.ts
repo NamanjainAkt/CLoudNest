@@ -162,7 +162,9 @@ class BackgroundSyncManager {
 
       // 3. Mark Complete in local SQLite Virtual File System
       const ext = nextItem.fileName.split('.').pop() || 'bin';
-      const fileId = `file_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      const fileId = uploadRes.messageId
+        ? `file_tg_${uploadRes.messageId}`
+        : `file_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
       await store.markQueueItemComplete(nextItem.id, {
         id: fileId,

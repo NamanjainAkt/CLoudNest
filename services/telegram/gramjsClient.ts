@@ -433,7 +433,7 @@ class GramJSClientService {
       (buffer as any).name = `${fileName}.enc`;
 
       let sentMsg: any = null;
-      let finalPeerStr = typeof targetPeer === 'string' ? targetPeer : 'me';
+      let finalPeerStr = typeof targetPeer === 'string' ? targetPeer : (this.currentSession?.channelId || 'me');
 
       try {
         sentMsg = await client.sendFile(targetPeer, {
@@ -821,7 +821,7 @@ class GramJSClientService {
     });
 
     let sentResult: any = null;
-    let finalPeerStr = typeof targetPeer === 'string' ? targetPeer : 'me';
+    let finalPeerStr = typeof targetPeer === 'string' ? targetPeer : (this.currentSession?.channelId || 'me');
 
     try {
       sentResult = await client.invoke(

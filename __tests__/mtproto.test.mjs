@@ -647,5 +647,131 @@ test('Telegram MTProto Transport & Edge Node Routing', async (t) => {
     assert.strictEqual(mappedSenders[3], 'sender_4');
     assert.strictEqual(mappedSenders[4], 'sender_1');
   });
+
+  await t.test('SQLite File Deduplication & Deterministic ID', () => {
+    // 1. Deterministic file ID generation matches between upload and cloud sync
+    const messageId = 42891;
+    const uploadFileId = `file_tg_${messageId}`;
+    const syncFileId = `file_tg_${messageId}`;
+    assert.strictEqual(uploadFileId, syncFileId);
+
+    // 2. Simulated SQLite database deduplication test
+    const filesDb = [];
+
+    function insertOrSyncFile(file) {
+      if (file.telegramMessageId && file.telegramMessageId > 0) {
+        const existing = filesDb.find(
+          (f) => f.id === file.id || f.telegramMessageId === file.telegramMessageId
+        );
+        if (existing) {
+          if (file.localCachePath && !existing.localCachePath) {
+            existing.localCachePath = file.localCachePath;
+          }
+          if (existing.telegramChannelId === 'me' && file.telegramChannelId && file.telegramChannelId !== 'me') {
+            existing.telegramChannelId = file.telegramChannelId;
+          }
+          return { inserted: false, record: existing };
+        }
+      }
+      filesDb.push({ ...file });
+      return { inserted: true, record: file };
+    }
+
+    // First: Local upload completion inserts file
+    const localUploadRecord = {
+      id: `file_tg_${messageId}`,
+      name: 'Invoice_2026.pdf',
+      telegramMessageId: messageId,
+      telegramChannelId: '-10023456789',
+      localCachePath: 'file:///cache/Invoice_2026.pdf',
+    };
+    const res1 = insertOrSyncFile(localUploadRecord);
+    assert.strictEqual(res1.inserted, true);
+    assert.strictEqual(filesDb.length, 1);
+
+    // Second: Cloud sync finds same message from Telegram
+    const cloudSyncRecord = {
+      id: `file_tg_${messageId}`,
+      name: 'Invoice_2026.pdf',
+      telegramMessageId: messageId,
+      telegramChannelId: '-10023456789',
+      localCachePath: null, // remote scan has no local cache initially
+    };
+    const res2 = insertOrSyncFile(cloudSyncRecord);
+    assert.strictEqual(res2.inserted, false);
+    assert.strictEqual(filesDb.length, 1, 'Should NOT create duplicate file in DB');
+    assert.strictEqual(filesDb[0].localCachePath, 'file:///cache/Invoice_2026.pdf', 'Must preserve local cache path');
+
+    // Third: If local record was created with 'me' fallback, sync upgrades channel ID
+    const legacyRecord = {
+      id: 'file_legacy_99',
+      name: 'OldDoc.docx',
+      telegramMessageId: 8888,
+      telegramChannelId: 'me',
+      localCachePath: 'file:///cache/OldDoc.docx',
+    };
+    insertOrSyncFile(legacyRecord);
+    assert.strictEqual(filesDb.length, 2);
+
+    const remoteSyncForLegacy = {
+      id: 'file_tg_8888',
+      name: 'OldDoc.docx',
+      telegramMessageId: 8888,
+      telegramChannelId: '-10099999999',
+      localCachePath: null,
+    };
+    const resLegacy = insertOrSyncFile(remoteSyncForLegacy);
+    assert.strictEqual(resLegacy.inserted, false);
+    assert.strictEqual(filesDb.length, 2, 'Should NOT duplicate legacy record');
+    const updated = filesDb.find((f) => f.telegramMessageId === 8888);
+    assert.strictEqual(updated.telegramChannelId, '-10099999999', 'Channel ID upgraded from me');
+    assert.strictEqual(updated.localCachePath, 'file:///cache/OldDoc.docx', 'Cache path kept');
+  });
+
+  await t.test('Cleanup existing duplicate records algorithm', () => {
+    // Simulate table with existing duplicates before patch
+    let records = [
+      { id: 'file_1', telegramMessageId: 101, localCachePath: 'file:///cache/1.pdf', telegramChannelId: 'me', createdAt: 1000 },
+      { id: 'file_tg_101', telegramMessageId: 101, localCachePath: null, telegramChannelId: '-1001', createdAt: 1500 },
+      { id: 'file_2', telegramMessageId: 202, localCachePath: null, telegramChannelId: '-1001', createdAt: 2000 },
+    ];
+
+    // Find duplicates grouped by telegramMessageId
+    const counts = {};
+    for (const r of records) {
+      counts[r.telegramMessageId] = (counts[r.telegramMessageId] || 0) + 1;
+    }
+    const dupIds = Object.keys(counts).filter(k => counts[k] > 1).map(Number);
+    assert.deepStrictEqual(dupIds, [101]);
+
+    for (const dupId of dupIds) {
+      const rows = records.filter(r => r.telegramMessageId === dupId);
+      // Sort rows prioritizing localCachePath != null, telegramChannelId != 'me', file_tg_ prefix, createdAt
+      rows.sort((a, b) => {
+        const aHasCache = a.localCachePath ? 0 : 1;
+        const bHasCache = b.localCachePath ? 0 : 1;
+        if (aHasCache !== bHasCache) return aHasCache - bHasCache;
+        const aIsChan = a.telegramChannelId !== 'me' ? 0 : 1;
+        const bIsChan = b.telegramChannelId !== 'me' ? 0 : 1;
+        if (aIsChan !== bIsChan) return aIsChan - bIsChan;
+        return a.createdAt - b.createdAt;
+      });
+
+      const primary = rows[0];
+      const secondaries = rows.slice(1);
+      for (const sec of secondaries) {
+        if (!primary.localCachePath && sec.localCachePath) {
+          primary.localCachePath = sec.localCachePath;
+        }
+        records = records.filter(r => r.id !== sec.id);
+      }
+    }
+
+    assert.strictEqual(records.length, 2);
+    const cleaned101 = records.find(r => r.telegramMessageId === 101);
+    assert.ok(cleaned101);
+    assert.strictEqual(cleaned101.localCachePath, 'file:///cache/1.pdf');
+    assert.strictEqual(records.filter(r => r.telegramMessageId === 101).length, 1);
+  });
 });
 

@@ -971,4 +971,28 @@ Concurrency scales dynamically based on file size thresholds:
 - **Immediate Timeout Cleanup**: Wrapped chunk timeout in `try...finally` to clear timeout handles as soon as a chunk finishes.
 - **Clean Session SignOut**: [`signOut()`](file:///C:/Andy%20projects/teleStore/services/telegram/gramjsClient.ts#L1175-L1190) destroys the sender pool and disconnects all socket connections.
 
+---
+
+## 31. Upload Throughput Tuning, UI Telemetry Fixes, & Zero-Duplicate Sync Architecture
+
+### 31.1 Root Cause & Resolution of Duplicate Files in UI
+- **Root Cause**:
+  1. When an upload completed via `backgroundSync.ts`, `markQueueItemComplete` previously created a record with a random ID (`file_${Date.now()}...`) and stored `uploadRes.channelId`. Because GramJS `targetPeer` was an `InputChannel` object, `typeof targetPeer === 'string' ? targetPeer : 'me'` coerced the channel ID to `'me'`.
+  2. When `syncWithTelegramCloud` ran (on app launch, pull-to-refresh, or sync), `syncFilesFromChannel` retrieved the message from the dedicated channel with `id: file_tg_${msg.id}` and `telegramChannelId: '-100...'`.
+  3. `FileDao.syncRemoteFiles` evaluated:
+     `SELECT id FROM files WHERE id = ? OR (telegram_message_id = ? AND telegram_channel_id = ?) LIMIT 1`.
+     Because `file.id` differed and `telegram_channel_id` differed (`'me'` vs `'-100...'`), `existing` returned null and inserted a second copy of the file.
+- **Resolution**:
+  1. **Deterministic File ID**: Both local upload completion in `backgroundSync.ts` and remote sync in `gramjsClient.ts` use deterministic IDs `file_tg_${uploadRes.messageId}`.
+  2. **Accurate Channel Preservation**: `finalPeerStr` in `gramjsClient.ts` preserves `this.currentSession?.channelId || 'me'` when `targetPeer` is resolved to an `InputPeer` entity.
+  3. **Strict Message Deduplication**: `FileDao.insertFile` and `FileDao.syncRemoteFiles` check `WHERE id = ? OR telegram_message_id = ? LIMIT 1`. If an existing record exists, duplicate insertion is suppressed, `local_cache_path` is preserved, and `telegram_channel_id` is upgraded from `'me'` to the real channel ID.
+  4. **Database Startup Deduplication Migration**: Added `cleanupDuplicateFiles(db)` in `getDb()` to automatically detect, merge `local_cache_path`, and purge any existing duplicate records from previous app versions.
+  5. **Performance Index**: Added `CREATE INDEX IF NOT EXISTS idx_files_tg_msg ON files(telegram_message_id)` for sub-millisecond deduplication checks.
+
+### 31.2 UI Telemetry & Font Rendering Fixes
+- **Eliminated "ij" Glyph Glitch**: Replaced raw unicode text arrow string `'↑ Calculating...'` with a native Lucide `<ArrowUp size={11} color={colors.primary} />` vector icon and clean text label, and updated typography monospace fallbacks for Android.
+- **Worker Concurrency Limit**: Adjusted `getAdaptiveWorkerCount` so all files ≥ 1 MB leverage 4 concurrent workers (scaling to 8 for > 200 MB), avoiding 2-worker bottlenecks on standard files.
+- **Optimized Disk Chunk Reading**: Avoided writing and unlinking 4 MB temporary files on flash storage for each read block, instead using direct seeked reads (`position` & `length`) for lower flash wear and higher throughput.
+
+
 

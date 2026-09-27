@@ -32,9 +32,56 @@ export async function getDb(): Promise<SQLite.SQLiteDatabase> {
     try {
       await databaseInstance.execAsync(`ALTER TABLE upload_queue_v2 ADD COLUMN errorMessage TEXT;`);
     } catch {}
+    try {
+      await databaseInstance.execAsync(`CREATE INDEX IF NOT EXISTS idx_files_tg_msg ON files(telegram_message_id);`);
+    } catch {}
     await seedInitialDataIfNeeded(databaseInstance);
+    await cleanupDuplicateFiles(databaseInstance);
   }
   return databaseInstance;
+}
+
+async function cleanupDuplicateFiles(db: SQLite.SQLiteDatabase): Promise<void> {
+  try {
+    const dupGroups = await db.getAllAsync<{ telegram_message_id: number; count: number }>(
+      `SELECT telegram_message_id, COUNT(*) as count 
+       FROM files 
+       WHERE telegram_message_id IS NOT NULL AND telegram_message_id > 0 AND is_deleted = 0
+       GROUP BY telegram_message_id 
+       HAVING count > 1`
+    );
+
+    for (const group of dupGroups) {
+      const rows = await db.getAllAsync<any>(
+        `SELECT id, local_cache_path, telegram_channel_id, created_at 
+         FROM files 
+         WHERE telegram_message_id = ? AND is_deleted = 0
+         ORDER BY 
+           (CASE WHEN local_cache_path IS NOT NULL AND local_cache_path != '' THEN 0 ELSE 1 END),
+           (CASE WHEN telegram_channel_id != 'me' THEN 0 ELSE 1 END),
+           (CASE WHEN id LIKE 'file_tg_%' THEN 0 ELSE 1 END),
+           created_at ASC`,
+        [group.telegram_message_id]
+      );
+
+      if (rows && rows.length > 1) {
+        const primary = rows[0];
+        for (let i = 1; i < rows.length; i++) {
+          const secondary = rows[i];
+          if (!primary.local_cache_path && secondary.local_cache_path) {
+            primary.local_cache_path = secondary.local_cache_path;
+            await db.runAsync(`UPDATE files SET local_cache_path = ? WHERE id = ?`, [
+              primary.local_cache_path,
+              primary.id,
+            ]);
+          }
+          await db.runAsync(`DELETE FROM files WHERE id = ?`, [secondary.id]);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[dbClient] cleanupDuplicateFiles error:', err);
+  }
 }
 
 async function seedInitialDataIfNeeded(db: SQLite.SQLiteDatabase) {
@@ -257,8 +304,32 @@ export const FileDao = {
   async insertFile(file: Omit<FileRecord, 'createdAt' | 'updatedAt'>): Promise<void> {
     const db = await getDb();
     const now = Date.now();
+
+    // Prevent duplicate records for the same Telegram message or ID
+    if (file.telegramMessageId && file.telegramMessageId > 0) {
+      const existing = await db.getFirstAsync<{ id: string; local_cache_path: string | null; telegram_channel_id: string }>(
+        `SELECT id, local_cache_path, telegram_channel_id FROM files WHERE id = ? OR telegram_message_id = ? LIMIT 1`,
+        [file.id, file.telegramMessageId]
+      );
+      if (existing) {
+        if (file.localCachePath && !existing.local_cache_path) {
+          await db.runAsync(
+            `UPDATE files SET local_cache_path = ?, updated_at = ? WHERE id = ?`,
+            [file.localCachePath, now, existing.id]
+          );
+        }
+        if (existing.telegram_channel_id === 'me' && file.telegramChannelId && file.telegramChannelId !== 'me') {
+          await db.runAsync(
+            `UPDATE files SET telegram_channel_id = ?, updated_at = ? WHERE id = ?`,
+            [file.telegramChannelId, now, existing.id]
+          );
+        }
+        return;
+      }
+    }
+
     await db.runAsync(
-      `INSERT INTO files (id, folder_id, name, size, mime_type, extension, telegram_message_id, telegram_channel_id, is_encrypted, encryption_iv, sha256_hash, local_cache_path, is_favorite, is_deleted, created_at, updated_at)
+      `INSERT OR REPLACE INTO files (id, folder_id, name, size, mime_type, extension, telegram_message_id, telegram_channel_id, is_encrypted, encryption_iv, sha256_hash, local_cache_path, is_favorite, is_deleted, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         file.id,
@@ -286,13 +357,26 @@ export const FileDao = {
     let importedCount = 0;
     for (const file of remoteFiles) {
       if (!file.telegramMessageId) continue;
-      const existing = await db.getFirstAsync<{ id: string }>(
-        `SELECT id FROM files WHERE id = ? OR (telegram_message_id = ? AND telegram_channel_id = ?) LIMIT 1`,
-        [file.id, file.telegramMessageId, file.telegramChannelId]
+      const existing = await db.getFirstAsync<{ id: string; local_cache_path: string | null; telegram_channel_id: string }>(
+        `SELECT id, local_cache_path, telegram_channel_id FROM files WHERE id = ? OR telegram_message_id = ? LIMIT 1`,
+        [file.id, file.telegramMessageId]
       );
       if (!existing) {
         await this.insertFile(file);
         importedCount++;
+      } else {
+        if (file.localCachePath && !existing.local_cache_path) {
+          await db.runAsync(
+            `UPDATE files SET local_cache_path = ?, updated_at = ? WHERE id = ?`,
+            [file.localCachePath, Date.now(), existing.id]
+          );
+        }
+        if (existing.telegram_channel_id === 'me' && file.telegramChannelId && file.telegramChannelId !== 'me') {
+          await db.runAsync(
+            `UPDATE files SET telegram_channel_id = ?, updated_at = ? WHERE id = ?`,
+            [file.telegramChannelId, Date.now(), existing.id]
+          );
+        }
       }
     }
     return importedCount;
