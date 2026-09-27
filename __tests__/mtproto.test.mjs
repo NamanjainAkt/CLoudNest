@@ -773,5 +773,52 @@ test('Telegram MTProto Transport & Edge Node Routing', async (t) => {
     assert.strictEqual(cleaned101.localCachePath, 'file:///cache/1.pdf');
     assert.strictEqual(records.filter(r => r.telegramMessageId === 101).length, 1);
   });
+
+  await t.test('Multi-Channel Discovery & Saved Messages Filtering on Reinstall', () => {
+    // 1. Test discovering CloudNest channels across up to 100 dialogs
+    const mockDialogs = [
+      { isChannel: true, title: 'Crypto News', id: -1001111111111 },
+      { isChannel: true, title: 'CloudNest Private Vault [E2EE]', id: -1002222222222 },
+      { isChannel: false, title: 'John Doe', id: 333333333 },
+      { isChannel: true, title: 'CloudNest Cloud Storage (Backup)', id: -1004444444444 },
+      { isChannel: true, title: 'Family Group', id: -1005555555555 },
+    ];
+
+    const discoveredChannels = mockDialogs.filter((d) => {
+      const title = (d.title || '').toLowerCase();
+      return d.isChannel && title.includes('cloudnest');
+    });
+
+    assert.strictEqual(discoveredChannels.length, 2);
+    assert.strictEqual(discoveredChannels[0].id, -1002222222222);
+    assert.strictEqual(discoveredChannels[1].id, -1004444444444);
+
+    // 2. Test Saved Messages filtering: Only files with #CloudNest or [CloudNest E2EE] are imported
+    const mockSavedMessages = [
+      { id: 501, message: 'My vacation photo.jpg\n\n#CloudNest', media: { document: { size: 1024, attributes: [{ fileName: 'vacation.jpg' }] } } },
+      { id: 502, message: 'Shopping list: milk, eggs, bread', media: null },
+      { id: 503, message: 'Forwarded personal tax document.pdf', media: { document: { size: 2048, attributes: [{ fileName: 'taxes.pdf' }] } } }, // NO #CloudNest tag!
+      { id: 504, message: '[CloudNest E2EE] SHA-256 Verified Encrypted Chunk', media: { document: { size: 4096, attributes: [{ fileName: 'backup.zip.enc' }] } } },
+      { id: 505, message: 'Random voice note', media: { document: { size: 512 } } }, // NO tag
+    ];
+
+    const parsedSavedFiles = [];
+    for (const msg of mockSavedMessages) {
+      if (!msg.media) continue;
+      const msgText = msg.message || '';
+      const isCloudNest = msgText.includes('#CloudNest') || msgText.includes('[CloudNest E2EE]');
+      // In Saved Messages, strictly skip non-CloudNest files
+      if (!isCloudNest) continue;
+      parsedSavedFiles.push({
+        id: `file_tg_${msg.id}`,
+        telegramMessageId: msg.id,
+      });
+    }
+
+    assert.strictEqual(parsedSavedFiles.length, 2);
+    assert.strictEqual(parsedSavedFiles[0].telegramMessageId, 501);
+    assert.strictEqual(parsedSavedFiles[1].telegramMessageId, 504);
+  });
 });
+
 

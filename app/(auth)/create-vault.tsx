@@ -63,15 +63,21 @@ export default function CreateVaultScreen() {
           phone: params.phone || '',
         });
         setSession(session);
-        // Trigger cloud recovery in background so onboarding does not stall
-        useVaultStore.getState().syncWithTelegramCloud().catch((err) => {
-          console.warn('Initial cloud sync error during onboarding:', err);
-        });
         setStep(4);
+        setProgressPercent(85);
+
+        // Await cloud sync so all previously uploaded files are restored BEFORE navigating to Home
+        try {
+          const restoredCount = await useVaultStore.getState().syncWithTelegramCloud();
+          console.log(`[CreateVault] Restored ${restoredCount} files from Telegram Cloud on login/reinstall`);
+        } catch (syncErr) {
+          console.warn('[CreateVault] Cloud restore warning on onboarding:', syncErr);
+        }
+
         setProgressPercent(100);
 
         // Step 4: Complete and navigate directly to CloudNest tabs
-        await new Promise((r) => setTimeout(r, 600));
+        await new Promise((r) => setTimeout(r, 400));
         router.replace('/(tabs)');
       } catch (err: any) {
         console.error('Vault setup error:', err);

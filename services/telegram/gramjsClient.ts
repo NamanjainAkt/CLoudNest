@@ -314,24 +314,39 @@ class GramJSClientService {
     }
   }
 
+  async getCloudNestChannels(): Promise<any[]> {
+    const client = await this.ensureConnected();
+    const channels: any[] = [];
+    try {
+      const dialogs = await client.getDialogs({ limit: 100 });
+      for (const d of dialogs) {
+        const title = (d.title || d.name || (d.entity as any)?.title || '').toLowerCase();
+        const isChan =
+          d.isChannel ||
+          (d.entity &&
+            (d.entity instanceof Api.Channel || (d.entity as any).className === 'Channel'));
+        if (isChan && title.includes('cloudnest')) {
+          channels.push(d);
+        }
+      }
+    } catch (err) {
+      console.warn('[GramJS] getCloudNestChannels error:', err);
+    }
+    return channels;
+  }
+
   async createPrivateVaultChannel(user: TelegramUser): Promise<TelegramSession> {
     const client = await this.ensureConnected();
     const channelTitle = 'CloudNest Private Vault [E2EE]';
     let channelId = '';
 
     try {
-      // Check existing dialogs to avoid creating duplicate vault channels
-      const dialogs = await client.getDialogs({ limit: 30 });
-      const existingChannel = dialogs.find(
-        (d) =>
-          d.isChannel &&
-          (d.title === 'CloudNest Cloud Storage' ||
-            d.title === 'CloudNest Private Vault [E2EE]' ||
-            (d.title && d.title.includes('CloudNest')))
-      );
-
-      if (existingChannel && existingChannel.id) {
-        channelId = existingChannel.id.toString();
+      // 1. Check existing dialogs to find and reuse any existing CloudNest channels
+      const existingChannels = await this.getCloudNestChannels();
+      if (existingChannels.length > 0) {
+        const primary = existingChannels[0];
+        channelId = primary.id ? primary.id.toString() : `-100${(primary.entity as any).id.toString()}`;
+        console.log(`[GramJS] Reusing existing CloudNest vault channel ${channelId} ("${primary.title || primary.name}")`);
       } else {
         // Create new private broadcast channel
         const createRes = await client.invoke(
@@ -389,16 +404,16 @@ class GramJSClientService {
 
     // 2. Fetch dialogs to prime in-memory entity cache with access hashes
     try {
-      const dialogs = await client.getDialogs({ limit: 50 });
+      const dialogs = await client.getDialogs({ limit: 100 });
       const found = dialogs.find(
         (d) =>
           d.id?.toString() === channelId ||
           d.entity?.id?.toString() === channelId ||
           `-100${d.entity?.id?.toString()}` === channelId ||
-          (d.isChannel &&
-            (d.title === 'CloudNest Cloud Storage' ||
-              d.title === 'CloudNest Private Vault [E2EE]' ||
-              (d.title && d.title.includes('CloudNest'))))
+          ((d.isChannel || (d.entity as any)?.className === 'Channel') &&
+            (d.title || d.name || (d.entity as any)?.title || '')
+              .toLowerCase()
+              .includes('cloudnest'))
       );
       if (found && found.entity) {
         return await client.getInputEntity(found.entity);
@@ -890,18 +905,45 @@ class GramJSClientService {
   async syncFilesFromChannel(channelId?: string): Promise<Omit<FileRecord, 'createdAt' | 'updatedAt'>[]> {
     const client = await this.ensureConnected();
     const effectiveChannelId = channelId || this.currentSession?.channelId || 'me';
-    let resolvedPeer: any = 'me';
-    try {
-      resolvedPeer = await this.resolveTargetPeer(effectiveChannelId);
-    } catch {
-      resolvedPeer = 'me';
-    }
-    const peerStr = typeof resolvedPeer === 'string' ? resolvedPeer : effectiveChannelId;
-
     const files: Omit<FileRecord, 'createdAt' | 'updatedAt'>[] = [];
     const seenCompoundKeys = new Set<string>();
 
-    const parseMessageList = (msgList: any[], sourcePeer: string) => {
+    // 1. Gather all CloudNest channels + effective channel + Saved Messages ('me')
+    const channelsToScan: { peer: any; peerStr: string; isSavedMessages: boolean }[] = [];
+
+    // Find all CloudNest channels in user's account
+    const existingChannels = await this.getCloudNestChannels();
+    for (const chan of existingChannels) {
+      const peerStr = chan.id ? chan.id.toString() : `-100${(chan.entity as any)?.id?.toString()}`;
+      try {
+        const peer = await client.getInputEntity(chan.entity || chan.inputEntity || peerStr);
+        channelsToScan.push({ peer, peerStr, isSavedMessages: false });
+      } catch {
+        channelsToScan.push({ peer: peerStr, peerStr, isSavedMessages: false });
+      }
+    }
+
+    // Also include effectiveChannelId if specified and not already in channelsToScan
+    if (effectiveChannelId && effectiveChannelId !== 'me') {
+      const alreadyIncluded = channelsToScan.some(
+        (c) =>
+          c.peerStr === effectiveChannelId ||
+          c.peerStr.replace('-100', '') === effectiveChannelId.replace('-100', '')
+      );
+      if (!alreadyIncluded) {
+        try {
+          const peer = await this.resolveTargetPeer(effectiveChannelId);
+          if (peer !== 'me') {
+            channelsToScan.push({ peer, peerStr: effectiveChannelId, isSavedMessages: false });
+          }
+        } catch {}
+      }
+    }
+
+    // Always scan Saved Messages ('me')
+    channelsToScan.push({ peer: 'me', peerStr: 'me', isSavedMessages: true });
+
+    const parseMessageList = (msgList: any[], sourcePeer: string, isSavedMessages: boolean) => {
       for (const msg of msgList) {
         if (!msg || !msg.id) continue;
         const compoundKey = `${sourcePeer}_${msg.id}`;
@@ -910,17 +952,20 @@ class GramJSClientService {
         const doc = (msg.media && (msg.media.document || msg.document)) || msg.document;
         const photo = (msg.media && (msg.media.photo || msg.photo)) || msg.photo;
 
-        if (doc || photo) {
-          // If the message is from 'me' (Saved Messages), strictly ensure it's a CloudNest file
-          if (sourcePeer === 'me') {
-            const msgText = (msg.message && typeof msg.message === 'string') ? msg.message : '';
-            if (!msgText.includes('[CloudNest E2EE]') && !msgText.includes('#CloudNest')) {
-              continue; // Skip personal files not uploaded by CloudNest
-            }
-          }
+        if (!doc && !photo) continue;
+
+        const msgText = (msg.message && typeof msg.message === 'string') ? msg.message : '';
+        const isCloudNestTagged = msgText.includes('#CloudNest') || msgText.includes('[CloudNest E2EE]');
+
+        // If scanning Saved Messages ('me'), STRICTLY require #CloudNest or [CloudNest E2EE] tag
+        // so personal chats/saved messages are never imported into CloudNest
+        if (isSavedMessages && !isCloudNestTagged) {
+          continue;
         }
+
+        seenCompoundKeys.add(compoundKey);
+
         if (doc) {
-          seenCompoundKeys.add(compoundKey);
           let fileName = '';
           if (Array.isArray(doc.attributes)) {
             for (const attr of doc.attributes) {
@@ -930,8 +975,8 @@ class GramJSClientService {
               }
             }
           }
-          if (!fileName && msg.message && typeof msg.message === 'string' && msg.message.trim()) {
-            const firstLine = msg.message.trim().split('\n')[0].trim();
+          if (!fileName && msgText.trim()) {
+            const firstLine = msgText.trim().split('\n')[0].trim();
             if (!firstLine.startsWith('[CloudNest E2EE]')) {
               fileName = firstLine;
             }
@@ -943,10 +988,9 @@ class GramJSClientService {
           const ext = fileName.includes('.') ? fileName.split('.').pop() || 'dat' : '';
           const size = Number(doc.size || 0);
           const mimeType = doc.mimeType || 'application/octet-stream';
-          const sanitizedPeer = sourcePeer.replace(/[^a-zA-Z0-9_-]/g, '_');
 
           files.push({
-            id: `file_tg_${sanitizedPeer}_${msg.id}`,
+            id: `file_tg_${msg.id}`,
             folderId: null,
             name: fileName,
             size,
@@ -962,10 +1006,9 @@ class GramJSClientService {
             isDeleted: false,
           });
         } else if (photo) {
-          seenCompoundKeys.add(compoundKey);
           let fileName = '';
-          if (msg.message && typeof msg.message === 'string' && msg.message.trim()) {
-            const firstLine = msg.message.trim().split('\n')[0].trim();
+          if (msgText.trim()) {
+            const firstLine = msgText.trim().split('\n')[0].trim();
             if (!firstLine.startsWith('[CloudNest E2EE]')) {
               fileName = firstLine;
             }
@@ -983,10 +1026,9 @@ class GramJSClientService {
             const largest = photo.sizes[photo.sizes.length - 1];
             photoSize = Number(largest?.size || (largest?.bytes ? largest.bytes.length : 0)) || 0;
           }
-          const sanitizedPeer = sourcePeer.replace(/[^a-zA-Z0-9_-]/g, '_');
 
           files.push({
-            id: `file_tg_${sanitizedPeer}_${msg.id}`,
+            id: `file_tg_${msg.id}`,
             folderId: null,
             name: fileName,
             size: photoSize,
@@ -1005,25 +1047,15 @@ class GramJSClientService {
       }
     };
 
-    // 1. Fetch from main resolved peer
-    try {
-      const msgs = await client.getMessages(resolvedPeer, { limit: 100 });
-      if (msgs && Array.isArray(msgs)) {
-        parseMessageList(msgs, peerStr);
-      }
-    } catch (err) {
-      console.warn('[GramJS] getMessages from targetPeer error:', err);
-    }
-
-    // 2. Fetch from Saved Messages ('me') if peer was a dedicated channel
-    if (peerStr !== 'me') {
+    // Scan every CloudNest channel and Saved Messages
+    for (const target of channelsToScan) {
       try {
-        const savedMsgs = await client.getMessages('me', { limit: 100 });
-        if (savedMsgs && Array.isArray(savedMsgs)) {
-          parseMessageList(savedMsgs, 'me');
+        const msgs = await client.getMessages(target.peer, { limit: 200 });
+        if (msgs && Array.isArray(msgs)) {
+          parseMessageList(msgs, target.peerStr, target.isSavedMessages);
         }
-      } catch (savedErr) {
-        console.warn('[GramJS] getMessages from Saved Messages error:', savedErr);
+      } catch (err) {
+        console.warn(`[GramJS] getMessages from ${target.peerStr} error:`, err);
       }
     }
 
@@ -1064,7 +1096,25 @@ class GramJSClientService {
       }
     }
 
-    const msg = messages && messages[0];
+    let msg = messages && messages[0];
+
+    // Fallback: If not found in targetPeer or 'me', search across any other CloudNest channels
+    if (!msg || (!msg.media && !(msg as any).document && !(msg as any).photo)) {
+      try {
+        const otherChannels = await this.getCloudNestChannels();
+        for (const ch of otherChannels) {
+          try {
+            const chPeer = ch.inputEntity || (await client.getInputEntity(ch.entity || ch.id));
+            const chMsgs = await client.getMessages(chPeer, { ids: [messageId] });
+            if (chMsgs && chMsgs.length > 0 && (chMsgs[0].media || (chMsgs[0] as any).document || (chMsgs[0] as any).photo)) {
+              msg = chMsgs[0];
+              break;
+            }
+          } catch {}
+        }
+      } catch {}
+    }
+
     if (!msg || (!msg.media && !(msg as any).document && !(msg as any).photo)) {
       throw new Error(`Telegram message #${messageId} not found or contains no downloadable media.`);
     }

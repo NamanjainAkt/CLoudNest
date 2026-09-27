@@ -994,5 +994,30 @@ Concurrency scales dynamically based on file size thresholds:
 - **Worker Concurrency Limit**: Adjusted `getAdaptiveWorkerCount` so all files ≥ 1 MB leverage 4 concurrent workers (scaling to 8 for > 200 MB), avoiding 2-worker bottlenecks on standard files.
 - **Optimized Disk Chunk Reading**: Avoided writing and unlinking 4 MB temporary files on flash storage for each read block, instead using direct seeked reads (`position` & `length`) for lower flash wear and higher throughput.
 
+---
+
+## 32. Multi-Channel Cloud Recovery & Reinstall File Persistence Architecture
+
+### 32.1 Root Cause of Missing Files on App Reinstallation
+1. **Shallow Dialog Scan During Channel Setup**: Previously, `createPrivateVaultChannel` queried only 30 dialogs (`client.getDialogs({ limit: 30 })`). For active Telegram accounts with >30 chats, the existing CloudNest channel was missed. This caused the app to create a brand new empty channel on every reinstall.
+2. **Single-Channel Sync Isolation**: `syncFilesFromChannel` only scanned a single peer (`effectiveChannelId`). If an account had files in an older CloudNest channel or in Saved Messages, those files were never scanned or displayed.
+3. **Un-awaited Onboarding Sync**: `create-vault.tsx` previously fired `syncWithTelegramCloud().catch(...)` asynchronously and navigated to the tabs within 600ms, causing the user to land on an empty dashboard before MTProto message retrieval finished.
+
+### 32.2 Multi-Channel Discovery & Cloud Recovery Engine
+1. **Deep Dialog Channel Discovery (`getCloudNestChannels`)**:
+   - Queries up to 100 dialogs and identifies all channels matching the `cloudnest` token across `title`, `name`, or `entity.title`.
+   - On reinstall, reuses the primary existing CloudNest channel, preventing duplicate channel proliferation.
+2. **Unified Multi-Target Sync**:
+   - `syncFilesFromChannel` scans **all** discovered CloudNest channels in the user's account plus Saved Messages (`'me'`).
+   - All files uploaded by CloudNest across any channel are parsed, deduplicated, and inserted into SQLite.
+3. **Strict Non-CloudNest Media Filtering**:
+   - For messages in Saved Messages (`'me'`), strictly requires the `#CloudNest` or `[CloudNest E2EE]` tag.
+   - User's personal chats, forwarded memes, voice notes, and private files in Saved Messages are never imported into CloudNest.
+4. **Resilient On-Demand Downloading**:
+   - If a file message is not found in the primary channel or Saved Messages, `downloadFile` searches across all other CloudNest channels before failing, ensuring seamless streaming and preview across reinstalls.
+5. **Awaited Onboarding Cloud Sync**:
+   - In `create-vault.tsx`, setup now awaits `syncWithTelegramCloud()` during milestone step 4, guaranteeing all historical files are populated into SQLite before the user views the Home tab.
+
+
 
 
