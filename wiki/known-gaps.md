@@ -7,7 +7,7 @@
 1. GCM auth tag never persisted (`files` lacks `auth_tag`) — DB-backed decrypt path unusable; CTR (streaming) vs GCM (cipher/chunking) divergence unreconciled.
 2. No PBKDF2 despite `keyDerivation.ts` docstring + wiki §8 claiming 100k HMAC-SHA512 — master key is raw CSPRNG output.
 3. ~~Lossy mnemonic round-trip~~ — **RESOLVED (2026-09-26)**: BIP39 standard 24-word recovery implemented in `services/crypto/mnemonic.ts` with official BIP39 test vectors, checksum verification, and wordlist validation (9 unit tests).
-4. Upload queue ephemeral (SQL `upload_queue` table unwired) + foreground-only `setInterval` sync — no background daemon (`expo-task-manager`). (Note: In-app upload engine upgraded to true MTProto parallel senders with adaptive scheduling and chunk-level retry).
+4. ~~Upload queue ephemeral~~ — **RESOLVED (2026-09-27)**: `upload_queue_v2` table added to SQLite and completely wired to Zustand with `currentChunk` persistence for full crash-resilience and chunk-level resume. (Note: still no background daemon).
 5. Biometric `authenticate()` returns `true` with no hardware — fail-open; key not hardware-bound.
 6. Hardcoded Telegram `apiId/apiHash` fallbacks ship live creds in the bundle.
 7. RNG `Math.random` last-tier fallback can feed nonces/IVs if `expo-crypto` unready.
