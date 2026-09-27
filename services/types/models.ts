@@ -53,6 +53,7 @@ export interface UploadQueueItem {
   currentChunk: number;
   totalChunks: number;
   speed: string; // e.g. "4.2 MB/s"
+  eta?: string; // e.g. "1m 24s", "45s"
   retryCount: number;
   errorMessage?: string | null;
   createdAt: number;

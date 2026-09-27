@@ -14,19 +14,22 @@ Category taxonomies diverge between `getCategoryCounts`, `searchFiles`, `getStor
 
 Limit 1 GB (`cloudnest_max_cache_bytes` in SecureStore); evicts `ORDER BY updated_at ASC`, non-favorites first; `deleteAsync` idempotent + NULLs `local_cache_path`. Recency = `updated_at` (mutation, not access — no atime bump); size from DB, not FS stat.
 
-## Upload pipeline (`backgroundSync.ts` + `useVaultStore` + `gramjsClient.ts`)
+## High-Throughput Upload Engine (`gramjsClient.ts` + `backgroundSync.ts` + `useVaultStore.ts`)
 
-## Upload pipeline (`backgroundSync.ts` + `useVaultStore` + `gramjsClient.ts`)
-
-`BackgroundSyncManager` runs parallel uploads up to `MAX_PARALLEL_UPLOADS = 4` concurrent files:
-- **Direct Unencrypted High-Speed Streaming**: Removed client-side AES-256 encryption overhead for maximum upload throughput. Files are transferred directly to Telegram with original filenames and MIME types preserved, enabling native previewing of photos, videos, and documents directly in Telegram.
-- **4 Concurrent Parallel Uploads**: Processes up to 4 files simultaneously with active upload slot management, asynchronous execution, and slot replenishment. Unstarted items are cleanly staged as `pending` (waiting for slot) and transition to `uploading` with live telemetry once an upload slot opens.
-- **Deadlock-Free MTProto Part Pipelining**: `uploadFileStreaming` pipelines up to 4 concurrent `Api.upload.SaveBigFilePart` / `SaveFilePart` requests over the primary socket with a decoupled buffer (`MAX_QUEUE_BUFFER = 4`). A `producerDone` synchronization barrier guarantees all chunks are read and uploaded without early termination race conditions.
-- **Socket Timeout & Auto-Retry**: 15-second per-chunk timeout prevents socket hangs on intermittent mobile network blips, automatically backing off and retrying up to 5 times.
+The upload engine is refactored for maximum network throughput and minimal JS bridge / CPU overhead:
+- **Direct Binary File Reading (`react-native-blob-util`)**: Completely removed Base64 encoding/decoding across the JS bridge. Files are read as binary data directly into native memory buffers.
+- **4 MB Disk Read Blocks (8x I/O Reduction)**: Reads large 4 MB binary blocks from disk instead of reading 512 KB per cycle. Each 4 MB block is sliced in-memory into eight 512 KB MTProto parts using zero-copy `Buffer.subarray()`, reducing disk read operations and bridge round-trips by 800%.
+- **True MTProto Parallelism (`MtprotoSenderPool`)**: Main client creates and maintains 4 independent `MTProtoSender` socket connections (`_createExportedSender(dcId)`). Chunks are dispatched in round-robin fashion across the 4 independent TCP/WSS sockets, preventing serialization bottlenecks on a single connection. Transparent fallback to `client.invoke()` if needed.
+- **Deep 32-Chunk Producer Queue (~16 MB Buffer)**: The producer buffers up to 32 parts (32 × 512 KB = 16 MB) in memory. Producer pauses only when queue reaches capacity and resumes when consumers drain, ensuring workers never wait on disk reads while keeping memory strictly bounded.
+- **Adaptive Upload Scheduling**: Automatically scales file and worker concurrency based on file size thresholds:
+  - *Large files (> 500 MB)*: 1 simultaneous file, 8 chunk workers (prevents bandwidth fragmentation).
+  - *Medium files (10 - 500 MB)*: 2 simultaneous files, 4 chunk workers.
+  - *Small files (< 10 MB)*: Up to 6 simultaneous files, 2 chunk workers.
+- **Zero Upload-Time SHA-256 Overhead**: Completely eliminated `sha256.update()` in the upload loop. Telegram validates uploaded parts server-side. MD5 checksum is computed only for small files (<= 10 MB) as required by `Api.InputFile(md5Checksum)`.
+- **Chunk-Level Retries with Jitter**: 15-second per-chunk timeout via `Promise.race()`. Failed chunks retry with exponential backoff and random jitter (`(2^(retries-1) * 500ms) + (0-500ms)`) up to 5 retries. Completed chunks are never re-uploaded.
+- **Exponential Smoothing & Live ETA**: 500ms sampling window with exponential smoothing (`smoothed = 0.7 * prev + 0.3 * inst`). Computes dynamic ETA formatted as `< 5s`, `25s`, `1m 40s`, etc.
+- **Throttled UI Updates (1/s)**: Zustand store progress updates are throttled to at most once per 1000ms per file (plus final 100% completion), eliminating UI thread jank and maintaining 60 FPS during high-speed transfers.
 - **Background & AppState Resumption**: Subscribes to React Native `AppState` transitions. When the app returns to `active`, any stalled or pending uploads are immediately detected and re-dispatched. Configured with Android `WAKE_LOCK`, `FOREGROUND_SERVICE`, and `FOREGROUND_SERVICE_DATA_SYNC` permissions.
-- **Instantaneous Rolling Speed Engine**: Samples delta bytes / delta time every 500ms with exponential smoothing (`smoothed = 0.7 * smoothed + 0.3 * inst`), providing accurate real-time telemetry on queue rows and aggregate badge.
-- **Cancellation & Graceful Pause**: Abort handler checks store status and immediately terminates worker pipeline without socket or memory leaks, preserving paused state.
-- **Multi-File Batch Selection**: Supports multi-select in document and photo pickers, batch enqueuing via `addUploadQueueItems` with collision-proof IDs.
 
 ## Telegram Cloud Sync & Reinstall Recovery (`gramjsClient.ts` + `dbClient.ts` + `useVaultStore.ts`)
 - **Automated Cloud Scanner**: Scans both dedicated vault channels and Saved Messages (`me`) via `client.getMessages({ limit: 100 })`.

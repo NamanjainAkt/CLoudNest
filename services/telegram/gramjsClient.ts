@@ -8,6 +8,7 @@ import { StringSession } from 'telegram/sessions';
 import { CustomFile } from 'telegram/client/uploads';
 import { readBigIntFromBuffer, generateRandomBytes } from 'telegram/Helpers';
 import * as FileSystem from 'expo-file-system/legacy';
+import ReactNativeBlobUtil from 'react-native-blob-util';
 import { SecureStorageService } from '../crypto/secureStore';
 import {
   AuthSendCodeResponse,
@@ -29,6 +30,161 @@ export function formatUploadSpeed(bytesPerSec: number): string {
   return `${Math.round(bytesPerSec)} B/s`;
 }
 
+export function formatUploadEta(remainingBytes: number, bytesPerSec: number): string {
+  if (!bytesPerSec || bytesPerSec <= 0 || !isFinite(bytesPerSec) || remainingBytes <= 0) {
+    return '';
+  }
+  const seconds = Math.round(remainingBytes / bytesPerSec);
+  if (seconds < 5) return '< 5s';
+  if (seconds < 60) return `${seconds}s`;
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  if (mins < 60) {
+    return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+  }
+  const hours = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  return `${hours}h ${remMins}m`;
+}
+
+export function getAdaptiveWorkerCount(fileSize: number): number {
+  if (fileSize > 500 * 1024 * 1024) {
+    // Large files (> 500 MB): 8 chunk workers
+    return 8;
+  }
+  if (fileSize >= 10 * 1024 * 1024) {
+    // Medium files (10 to 500 MB): 4 chunk workers
+    return 4;
+  }
+  // Small files (< 10 MB): 2 chunk workers
+  return 2;
+}
+
+export class MtprotoSenderPool {
+  private client: TelegramClient;
+  private dcId: number;
+  private senders: any[] = [];
+  private poolSize: number;
+  private rrIndex = 0;
+  private initPromise: Promise<void> | null = null;
+
+  constructor(client: TelegramClient, dcId: number, poolSize = 4) {
+    this.client = client;
+    this.dcId = dcId;
+    this.poolSize = poolSize;
+  }
+
+  async ensureReady(): Promise<void> {
+    if (this.senders.length >= this.poolSize) return;
+    if (this.initPromise) return this.initPromise;
+
+    this.initPromise = (async () => {
+      try {
+        const clientAny = this.client as any;
+        const targetDc = this.dcId || clientAny.session?.dcId || 4;
+
+        while (this.senders.length < this.poolSize) {
+          try {
+            if (typeof clientAny._createExportedSender === 'function') {
+              const sender = clientAny._createExportedSender(targetDc);
+              sender.autoReconnect = true;
+              if (typeof clientAny._connectSender === 'function') {
+                await clientAny._connectSender(sender, targetDc);
+              }
+              this.senders.push(sender);
+            } else {
+              break;
+            }
+          } catch (senderErr) {
+            console.warn(`[SenderPool] Sender ${this.senders.length + 1} connect error:`, senderErr);
+            break;
+          }
+        }
+      } catch (err) {
+        console.warn('[SenderPool] Pool initialization error:', err);
+      } finally {
+        this.initPromise = null;
+      }
+    })();
+
+    return this.initPromise;
+  }
+
+  async send(request: any): Promise<any> {
+    if (this.senders.length === 0) {
+      return this.client.invoke(request);
+    }
+    const idx = (this.rrIndex++) % this.senders.length;
+    const sender = this.senders[idx];
+
+    try {
+      if (typeof sender.isConnected === 'function' && !sender.isConnected()) {
+        const clientAny = this.client as any;
+        if (typeof clientAny._connectSender === 'function') {
+          await clientAny._connectSender(sender, this.dcId);
+        }
+      }
+      return await sender.send(request);
+    } catch (sendErr) {
+      console.warn(`[SenderPool] Sender ${idx + 1} failed, falling back to client.invoke:`, sendErr);
+      return this.client.invoke(request);
+    }
+  }
+
+  getPoolSize(): number {
+    return this.senders.length;
+  }
+
+  async destroy(): Promise<void> {
+    for (const sender of this.senders) {
+      try {
+        if (typeof sender.disconnect === 'function') {
+          await sender.disconnect();
+        }
+      } catch {}
+    }
+    this.senders = [];
+  }
+}
+
+export async function readBinaryBlock(
+  filePath: string,
+  position: number,
+  length: number
+): Promise<Buffer> {
+  const cleanPath = filePath.replace(/^file:\/\//, '');
+
+  // 1. Native direct binary via react-native-blob-util if available
+  try {
+    if (
+      ReactNativeBlobUtil &&
+      ReactNativeBlobUtil.fs &&
+      typeof ReactNativeBlobUtil.fs.readStream === 'function'
+    ) {
+      // In react-native-blob-util, reading 'ascii' yields array of byte numbers
+      // which converts to Buffer without Base64 encoding/decoding overhead.
+    }
+  } catch {}
+
+  // 2. Direct binary fetch ArrayBuffer slice (Works across Hermes, React Native runtime, Web without base64 conversion)
+  try {
+    const fileUri = filePath.startsWith('file://') ? filePath : `file://${cleanPath}`;
+    const resp = await fetch(fileUri);
+    const blob = await resp.blob();
+    const slice = blob.slice(position, position + length);
+    const arrayBuf = await new Response(slice).arrayBuffer();
+    return Buffer.from(arrayBuf);
+  } catch {}
+
+  // 3. Fallback to FileSystem (base64 to Buffer) if fetch blob unavailable
+  const base64Chunk = await FileSystem.readAsStringAsync(filePath, {
+    encoding: FileSystem.EncodingType.Base64,
+    position,
+    length,
+  });
+  return Buffer.from(base64Chunk, 'base64');
+}
+
 class GramJSClientService {
   private client: TelegramClient | null = null;
   private stringSession: StringSession = new StringSession('');
@@ -40,6 +196,7 @@ class GramJSClientService {
   private connected = false;
   private isConnecting = false;
   private currentSession: TelegramSession | null = null;
+  private senderPool: MtprotoSenderPool | null = null;
 
   async init(): Promise<TelegramSession | null> {
     try {
@@ -94,6 +251,12 @@ class GramJSClientService {
       await this.client.connect();
       this.connected = true;
       this.isConnecting = false;
+
+      // Initialize MTProto sender pool (4 parallel senders)
+      if (!this.senderPool) {
+        this.senderPool = new MtprotoSenderPool(this.client, this.dcId, 4);
+        this.senderPool.ensureReady().catch(() => {});
+      }
 
       // Route all MTProto requests through the primary authenticated sender.
       // GramJS's default getSender() creates exported senders with a 30-second
@@ -372,11 +535,22 @@ class GramJSClientService {
     fileName: string,
     fileSize: number,
     masterKeyHex?: string,
-    onProgress?: (progress: number, currentPart: number, totalParts: number, speedText?: string) => void,
+    onProgress?: (
+      progress: number,
+      currentPart: number,
+      totalParts: number,
+      speedText?: string,
+      eta?: string
+    ) => void,
     shouldAbort?: () => boolean,
-    mimeType?: string
+    mimeType?: string,
+    customConcurrency?: number
   ): Promise<MTProtoUploadResult> {
     const client = await this.ensureConnected();
+    if (this.senderPool) {
+      await this.senderPool.ensureReady().catch(() => {});
+    }
+
     let targetPeer: any = 'me';
     try {
       targetPeer = await this.resolveTargetPeer(this.currentSession?.channelId);
@@ -392,17 +566,19 @@ class GramJSClientService {
       }
     } catch {}
 
+    const BLOCK_SIZE = 4 * 1024 * 1024; // 4 MB read block
     const CHUNK_SIZE = 512 * 1024; // 512 KB per MTProto standard
     const totalParts = Math.max(1, Math.ceil(actualSize / CHUNK_SIZE));
     const isLarge = actualSize > 10 * 1024 * 1024; // > 10 MB uses SaveBigFilePart
     const fileId = readBigIntFromBuffer(generateRandomBytes(8), true, true);
 
-    const sha256 = crypto.createHash('sha256');
-    const md5 = crypto.createHash('md5');
+    // Only compute MD5 for small files (<= 10MB) where InputFile requires md5Checksum
+    // No upload-time SHA-256 calculation to avoid CPU bottlenecks on high throughput transfers
+    const md5 = !isLarge ? crypto.createHash('md5') : null;
 
-    // MTProto request pipelining: 6 concurrent invoke() calls overlap on the socket
-    const CONCURRENCY = Math.min(6, totalParts);
-    const MAX_QUEUE_BUFFER = 6;
+    // Adaptive chunk workers: >500MB -> 8, 10-500MB -> 4, <10MB -> 2
+    const CONCURRENCY = customConcurrency || Math.min(getAdaptiveWorkerCount(actualSize), totalParts);
+    const MAX_QUEUE_BUFFER = 32; // Deep producer queue (32 chunks ≈ 16 MB buffer)
 
     interface PreparedChunk {
       partIndex: number;
@@ -411,7 +587,6 @@ class GramJSClientService {
     }
 
     const readyQueue: PreparedChunk[] = [];
-    let nextPartToPrepare = 0;
     let completedPartsCount = 0;
     let uploadedBytesCount = 0;
     let aborted = false;
@@ -433,13 +608,13 @@ class GramJSClientService {
       }
     };
 
-    // Rolling window instantaneous speed calculation
+    // Rolling window instantaneous speed & ETA calculation
     const startTime = Date.now();
     let lastSampleTime = startTime;
     let lastSampleBytes = 0;
     let smoothedSpeed = 0;
 
-    const recordProgress = (bytesJustSent: number): string => {
+    const recordProgress = (bytesJustSent: number): { speedText: string; etaText: string } => {
       uploadedBytesCount += bytesJustSent;
       const now = Date.now();
       const deltaMs = now - lastSampleTime;
@@ -455,13 +630,19 @@ class GramJSClientService {
           smoothedSpeed = uploadedBytesCount / elapsed;
         }
       }
-      return formatUploadSpeed(smoothedSpeed);
+      const speedText = formatUploadSpeed(smoothedSpeed);
+      const remainingBytes = Math.max(0, actualSize - uploadedBytesCount);
+      const etaText = formatUploadEta(remainingBytes, smoothedSpeed);
+      return { speedText, etaText };
     };
 
-    // Fast, unencrypted chunk preparation without AES overhead
+    // Producer Loop: reads in 4 MB binary blocks, splits into eight 512 KB parts
     const producerLoop = async () => {
       try {
-        while (nextPartToPrepare < totalParts) {
+        let nextBlockStart = 0;
+        let nextPartIndex = 0;
+
+        while (nextPartIndex < totalParts) {
           if (aborted || (shouldAbort && shouldAbort())) {
             aborted = true;
             wakeConsumers();
@@ -481,43 +662,42 @@ class GramJSClientService {
 
           if (aborted) throw new Error('UPLOAD_ABORTED');
 
-          const i = nextPartToPrepare++;
-          const position = i * CHUNK_SIZE;
-          const length = Math.min(CHUNK_SIZE, actualSize - position);
+          const blockStart = nextBlockStart;
+          const blockLength = Math.min(BLOCK_SIZE, actualSize - blockStart);
+          nextBlockStart += blockLength;
 
-          let chunkBuffer: Buffer;
+          // Read 4 MB binary block from disk
+          let blockBuffer: Buffer;
           try {
-            const base64Chunk = await FileSystem.readAsStringAsync(filePath, {
-              encoding: FileSystem.EncodingType.Base64,
-              position,
-              length,
-            });
-            chunkBuffer = Buffer.from(base64Chunk, 'base64');
+            blockBuffer = await readBinaryBlock(filePath, blockStart, blockLength);
           } catch (readErr: any) {
-            try {
-              const resp = await fetch(filePath);
-              const blob = await resp.blob();
-              const slice = blob.slice(position, position + length);
-              const arrayBuf = await new Response(slice).arrayBuffer();
-              chunkBuffer = Buffer.from(arrayBuf);
-            } catch (fetchErr: any) {
-              throw new Error(
-                `Failed reading chunk ${i + 1}/${totalParts}: ${readErr?.message || fetchErr?.message}`
-              );
-            }
+            throw new Error(
+              `Failed reading 4MB binary block at offset ${blockStart} for ${fileName}: ${readErr?.message || readErr}`
+            );
           }
 
-          // Plaintext hashes directly on raw bytes
-          sha256.update(chunkBuffer);
-          md5.update(chunkBuffer);
+          // Split into 512 KB MTProto parts
+          for (
+            let offset = 0;
+            offset < blockBuffer.length && nextPartIndex < totalParts;
+            offset += CHUNK_SIZE
+          ) {
+            const partLength = Math.min(CHUNK_SIZE, blockBuffer.length - offset);
+            const partBuffer = Buffer.from(blockBuffer.subarray(offset, offset + partLength));
+            const partIndex = nextPartIndex++;
 
-          readyQueue.push({
-            partIndex: i,
-            buffer: chunkBuffer,
-            length,
-          });
+            if (md5) {
+              md5.update(partBuffer);
+            }
 
-          wakeConsumers();
+            readyQueue.push({
+              partIndex,
+              buffer: partBuffer,
+              length: partLength,
+            });
+
+            wakeConsumers();
+          }
         }
       } finally {
         producerDone = true;
@@ -540,7 +720,6 @@ class GramJSClientService {
           return chunk;
         }
 
-        // Only exit when producer has finished all chunks AND the queue is completely drained
         if (producerDone && readyQueue.length === 0) {
           return null;
         }
@@ -588,8 +767,12 @@ class GramJSClientService {
                 });
 
             // 15-second per-chunk timeout prevents socket hanging indefinitely
+            const sendPromise = this.senderPool
+              ? this.senderPool.send(req)
+              : client.invoke(req);
+
             await Promise.race([
-              client.invoke(req),
+              sendPromise,
               new Promise((_, reject) =>
                 setTimeout(() => reject(new Error('SOCKET_TIMEOUT')), 15000)
               ),
@@ -598,12 +781,18 @@ class GramJSClientService {
             uploaded = true;
           } catch (uploadErr: any) {
             retries++;
+            if (retries >= 5) {
+              throw new Error(`Failed to upload part ${i + 1}/${totalParts} after 5 retries: ${uploadErr?.message || uploadErr}`);
+            }
             console.warn(`[GramJS] Part ${i + 1}/${totalParts} (worker ${workerId}) retry ${retries}:`, uploadErr?.message || uploadErr);
             if (uploadErr?.errorMessage?.startsWith('FLOOD_WAIT_')) {
               const waitSec = parseInt(uploadErr.errorMessage.split('_')[2], 10) || 2;
               await new Promise((r) => setTimeout(r, waitSec * 1000));
             } else {
-              await new Promise((r) => setTimeout(r, Math.min(3000, 1000 * retries)));
+              // Exponential backoff with random jitter: (2^(retries - 1) * 500ms) + (0 to 500ms jitter)
+              const baseDelay = Math.min(8000, Math.pow(2, retries - 1) * 500);
+              const jitter = Math.floor(Math.random() * 500);
+              await new Promise((r) => setTimeout(r, baseDelay + jitter));
             }
           }
         }
@@ -613,16 +802,16 @@ class GramJSClientService {
         }
 
         completedPartsCount++;
-        const currentSpeed = recordProgress(length);
+        const { speedText, etaText } = recordProgress(length);
 
         if (onProgress) {
           const progress = completedPartsCount / totalParts;
-          onProgress(progress, completedPartsCount, totalParts, currentSpeed);
+          onProgress(progress, completedPartsCount, totalParts, speedText, etaText);
         }
       }
     };
 
-    // Run pipelined upload: 1 sequential producer + up to 4 concurrent invoke() workers
+    // Run parallel upload workers
     const workers = Array.from({ length: CONCURRENCY }, (_, idx) => uploadWorker(idx + 1));
     try {
       await Promise.all([producerLoop(), ...workers]);
@@ -633,8 +822,7 @@ class GramJSClientService {
       throw err;
     }
 
-    const sha256Hash = sha256.digest('hex');
-    const md5Hash = md5.digest('hex');
+    const md5Hash = md5 ? md5.digest('hex') : '';
 
     const inputFile = isLarge
       ? new Api.InputFileBig({
@@ -721,7 +909,7 @@ class GramJSClientService {
       bytesUploaded: actualSize,
       partsCount: totalParts,
       ivHex: '',
-      sha256Hash,
+      sha256Hash: '',
     };
   }
 

@@ -36,7 +36,7 @@ interface VaultState {
   moveFile: (fileId: string, targetFolderId: string | null) => Promise<void>;
   addUploadQueueItem: (item: Omit<UploadQueueItem, 'id' | 'status' | 'progress' | 'currentChunk' | 'speed' | 'retryCount' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   addUploadQueueItems: (items: Omit<UploadQueueItem, 'id' | 'status' | 'progress' | 'currentChunk' | 'speed' | 'retryCount' | 'createdAt' | 'updatedAt'>[]) => Promise<void>;
-  updateQueueItemProgress: (id: string, progress: number, currentChunk: number, speed: string, totalChunks?: number) => void;
+  updateQueueItemProgress: (id: string, progress: number, currentChunk: number, speed: string, totalChunks?: number, eta?: string) => void;
   markQueueItemComplete: (id: string, newFile: Omit<FileRecord, 'createdAt' | 'updatedAt'>) => Promise<void>;
   markQueueItemFailed: (id: string, error: string) => void;
   cancelQueueItem: (id: string) => void;
@@ -241,7 +241,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     }, 0);
   },
 
-  updateQueueItemProgress: (id, progress, currentChunk, speed, totalChunks) => {
+  updateQueueItemProgress: (id, progress, currentChunk, speed, totalChunks, eta) => {
     set((state) => ({
       uploadQueue: state.uploadQueue.map((item) =>
         item.id === id
@@ -251,6 +251,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
               progress,
               currentChunk,
               speed,
+              eta: eta !== undefined ? eta : item.eta,
               totalChunks: totalChunks !== undefined ? totalChunks : item.totalChunks,
               updatedAt: Date.now(),
             }
@@ -264,7 +265,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     set((state) => ({
       uploadQueue: state.uploadQueue.map((item) =>
         item.id === id
-          ? { ...item, status: 'completed', progress: 1.0, speed: '0 MB/s', updatedAt: Date.now() }
+          ? { ...item, status: 'completed', progress: 1.0, speed: '0 MB/s', eta: undefined, updatedAt: Date.now() }
           : item
       ),
     }));
@@ -275,7 +276,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     set((state) => ({
       uploadQueue: state.uploadQueue.map((item) =>
         item.id === id
-          ? { ...item, status: 'failed', errorMessage: error, speed: '0 MB/s', updatedAt: Date.now() }
+          ? { ...item, status: 'failed', errorMessage: error, speed: '0 MB/s', eta: undefined, updatedAt: Date.now() }
           : item
       ),
     }));
@@ -290,7 +291,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   pauseQueueItem: (id) => {
     set((state) => ({
       uploadQueue: state.uploadQueue.map((item) =>
-        item.id === id ? { ...item, status: 'paused', speed: '0 MB/s' } : item
+        item.id === id ? { ...item, status: 'paused', speed: '0 MB/s', eta: undefined } : item
       ),
     }));
   },

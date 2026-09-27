@@ -180,7 +180,7 @@ export const QueueItemRow = memo<QueueItemRowProps>(({
           ]}
         >
           {item.status === 'uploading'
-            ? (item.speed || 'Calculating...')
+            ? `${item.speed || 'Calculating...'}${item.eta ? ` • ETA ${item.eta}` : ''}`
             : item.status === 'pending'
             ? 'QUEUED'
             : item.status.toUpperCase()}

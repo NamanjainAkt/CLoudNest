@@ -32,12 +32,37 @@ class BackgroundSyncManager {
   }
 
   /**
-   * Process pending items in upload queue concurrently up to MAX_PARALLEL_UPLOADS
+   * Adaptive concurrency limit based on file sizes currently in active/pending queue:
+   * - Files > 500 MB: 1 simultaneous file
+   * - Files 10 - 500 MB: 2 simultaneous files
+   * - Files < 10 MB: up to 6 simultaneous files
+   */
+  getAdaptiveFileLimit(): number {
+    const store = useVaultStore.getState();
+    const queue = store.uploadQueue;
+    const activeOrPending = queue.filter(
+      (item) => item.status === 'uploading' || item.status === 'pending'
+    );
+
+    if (activeOrPending.length === 0) return 4;
+
+    const hasLarge = activeOrPending.some((item) => item.fileSize > 500 * 1024 * 1024);
+    if (hasLarge) return 1;
+
+    const hasMedium = activeOrPending.some((item) => item.fileSize >= 10 * 1024 * 1024);
+    if (hasMedium) return 2;
+
+    return 6;
+  }
+
+  /**
+   * Process pending items in upload queue concurrently with adaptive scheduling
    */
   async processNextPendingUpload(): Promise<boolean> {
     let startedAny = false;
+    const maxFiles = this.getAdaptiveFileLimit();
 
-    while (this.activeUploadIds.size < this.MAX_PARALLEL_UPLOADS) {
+    while (this.activeUploadIds.size < maxFiles) {
       const store = useVaultStore.getState();
       const queue = store.uploadQueue;
       const nextItem = queue.find(
@@ -85,28 +110,37 @@ class BackgroundSyncManager {
 
       const totalParts = Math.max(1, Math.ceil(actualSize / (512 * 1024)));
 
-      // 2. Stream chunked encryption & upload directly to Telegram MTProto
+      // 2. Stream chunked upload directly to Telegram MTProto
       store.updateQueueItemProgress(
         nextItem.id,
         0.05,
         1,
         '0 MB/s',
-        totalParts
+        totalParts,
+        'Calculating...'
       );
+
+      let lastProgressDispatchTime = 0;
 
       const uploadRes = await MTProtoClient.uploadFileStreaming(
         nextItem.filePath,
         nextItem.fileName,
         actualSize,
         masterKey || '',
-        (progress, currentPart, total, speedText) => {
-          store.updateQueueItemProgress(
-            nextItem.id,
-            progress,
-            currentPart,
-            speedText || '0 MB/s',
-            total
-          );
+        (progress, currentPart, total, speedText, eta) => {
+          const now = Date.now();
+          // Throttle store updates to once per 1000ms unless complete (progress >= 1.0)
+          if (progress >= 1.0 || now - lastProgressDispatchTime >= 1000) {
+            lastProgressDispatchTime = now;
+            store.updateQueueItemProgress(
+              nextItem.id,
+              progress,
+              currentPart,
+              speedText || '0 MB/s',
+              total,
+              eta
+            );
+          }
         },
         () => {
           const item = useVaultStore.getState().uploadQueue.find((i) => i.id === nextItem.id);

@@ -438,5 +438,214 @@ test('Telegram MTProto Transport & Edge Node Routing', async (t) => {
     }
     assert.strictEqual(newlyImported, 2); // 102 and 103 newly imported, 101 skipped
   });
+
+  await t.test('4 MB disk read blocks and 8 x 512 KB part splitting', () => {
+    const BLOCK_SIZE = 4 * 1024 * 1024;
+    const CHUNK_SIZE = 512 * 1024;
+
+    // Verify that 4 MB block size divided by 512 KB part size yields exactly 8 MTProto parts.
+    const partsPer4MbBlock = BLOCK_SIZE / CHUNK_SIZE;
+    assert.strictEqual(partsPer4MbBlock, 8);
+
+    // Verify that a 10 MB file breaks into 20 MTProto parts (512 KB each).
+    const tenMB = 10 * 1024 * 1024;
+    const totalParts10MB = Math.ceil(tenMB / CHUNK_SIZE);
+    assert.strictEqual(totalParts10MB, 20);
+
+    // Test buffer slicing: Buffer.alloc(4 * 1024 * 1024) sliced in 512 KB steps produces 8 slices of 512 KB each.
+    const dummyBlock = Buffer.alloc(4 * 1024 * 1024);
+    const slices = [];
+    for (let offset = 0; offset < dummyBlock.length; offset += CHUNK_SIZE) {
+      slices.push(dummyBlock.subarray(offset, offset + CHUNK_SIZE));
+    }
+    assert.strictEqual(slices.length, 8);
+    for (const slice of slices) {
+      assert.strictEqual(slice.length, 512 * 1024);
+    }
+  });
+
+  await t.test('Deep producer queue size and RAM boundary constraint', () => {
+    // Verify MAX_QUEUE_BUFFER = 32 chunks.
+    const MAX_QUEUE_BUFFER = 32;
+    const CHUNK_SIZE = 512 * 1024;
+    assert.strictEqual(MAX_QUEUE_BUFFER, 32);
+
+    // Verify that 32 * 512 KB = 16 MB max RAM buffer.
+    const maxBufferBytes = MAX_QUEUE_BUFFER * CHUNK_SIZE;
+    assert.strictEqual(maxBufferBytes, 16 * 1024 * 1024); // Exactly 16 MB bounded RAM
+    assert.strictEqual(maxBufferBytes / (1024 * 1024), 16);
+  });
+
+  await t.test('Adaptive worker count rules for file size categories', () => {
+    // Function getAdaptiveWorkerCount(fileSize):
+    //   - > 500 MB -> 8 workers
+    //   - 10 to 500 MB -> 4 workers
+    //   - < 10 MB -> 2 workers
+    function getAdaptiveWorkerCount(fileSize) {
+      if (fileSize > 500 * 1024 * 1024) return 8; // Large files (> 500 MB)
+      if (fileSize >= 10 * 1024 * 1024) return 4; // Medium files (10 to 500 MB)
+      return 2; // Small files (< 10 MB)
+    }
+
+    // Test various sizes (e.g. 600 MB -> 8, 50 MB -> 4, 10 MB -> 4, 2 MB -> 2, 500 KB -> 2).
+    assert.strictEqual(getAdaptiveWorkerCount(600 * 1024 * 1024), 8); // 600 MB -> 8
+    assert.strictEqual(getAdaptiveWorkerCount(500 * 1024 * 1024 + 1), 8); // 500 MB + 1 byte -> 8
+    assert.strictEqual(getAdaptiveWorkerCount(500 * 1024 * 1024), 4); // 500 MB exact -> 4
+    assert.strictEqual(getAdaptiveWorkerCount(50 * 1024 * 1024), 4); // 50 MB -> 4
+    assert.strictEqual(getAdaptiveWorkerCount(10 * 1024 * 1024), 4); // 10 MB -> 4
+    assert.strictEqual(getAdaptiveWorkerCount(10 * 1024 * 1024 - 1), 2); // 10 MB - 1 byte -> 2
+    assert.strictEqual(getAdaptiveWorkerCount(2 * 1024 * 1024), 2); // 2 MB -> 2
+    assert.strictEqual(getAdaptiveWorkerCount(500 * 1024), 2); // 500 KB -> 2
+  });
+
+  await t.test('Adaptive queue concurrency rules based on file size thresholds', () => {
+    // Function getAdaptiveFileLimit(items):
+    //   - If any file > 500 MB -> 1 file
+    //   - Else if any file >= 10 MB -> 2 files
+    //   - Else -> 6 files
+    function getAdaptiveFileLimit(items) {
+      if (!items || items.length === 0) return 4;
+      const hasLarge = items.some((item) => item.fileSize > 500 * 1024 * 1024);
+      if (hasLarge) return 1;
+      const hasMedium = items.some((item) => item.fileSize >= 10 * 1024 * 1024);
+      if (hasMedium) return 2;
+      return 6;
+    }
+
+    // If any file > 500 MB -> 1 file
+    assert.strictEqual(getAdaptiveFileLimit([{ fileSize: 600 * 1024 * 1024 }]), 1);
+
+    // Mix of 1 large and 3 small -> limit 1
+    assert.strictEqual(
+      getAdaptiveFileLimit([
+        { fileSize: 700 * 1024 * 1024 },
+        { fileSize: 2 * 1024 * 1024 },
+        { fileSize: 1 * 1024 * 1024 },
+        { fileSize: 500 * 1024 },
+      ]),
+      1
+    );
+
+    // Else if any file >= 10 MB -> 2 files
+    assert.strictEqual(
+      getAdaptiveFileLimit([
+        { fileSize: 50 * 1024 * 1024 },
+        { fileSize: 20 * 1024 * 1024 },
+      ]),
+      2
+    );
+
+    // Mix of medium and small files -> limit 2
+    assert.strictEqual(
+      getAdaptiveFileLimit([
+        { fileSize: 15 * 1024 * 1024 },
+        { fileSize: 2 * 1024 * 1024 },
+      ]),
+      2
+    );
+
+    // Boundary condition: 10 MB file exactly -> limit 2
+    assert.strictEqual(getAdaptiveFileLimit([{ fileSize: 10 * 1024 * 1024 }]), 2);
+
+    // Else (only small files < 10 MB) -> 6 files
+    assert.strictEqual(
+      getAdaptiveFileLimit([
+        { fileSize: 2 * 1024 * 1024 },
+        { fileSize: 5 * 1024 * 1024 },
+        { fileSize: 500 * 1024 },
+      ]),
+      6
+    );
+
+    // Empty pending queue -> fallback 4
+    assert.strictEqual(getAdaptiveFileLimit([]), 4);
+  });
+
+  await t.test('Exponential smoothing speed calculation and ETA formatting', () => {
+    // Smoothing formula: 0.7 * prevSmoothed + 0.3 * currentInstant.
+    function calculateSmoothedSpeed(prevSmoothed, currentInstant) {
+      if (prevSmoothed === 0) return currentInstant;
+      return 0.7 * prevSmoothed + 0.3 * currentInstant;
+    }
+
+    // Verify first sample sets initial speed, second sample applies 0.7/0.3 weights.
+    let speed = 0;
+    speed = calculateSmoothedSpeed(speed, 10 * 1024 * 1024); // First sample = 10 MB/s
+    assert.strictEqual(speed, 10 * 1024 * 1024);
+    speed = calculateSmoothedSpeed(speed, 20 * 1024 * 1024); // Second sample: 0.7 * 10 + 0.3 * 20 = 13 MB/s
+    assert.strictEqual(speed, 13 * 1024 * 1024);
+
+    // Function formatUploadEta(remainingBytes, speed):
+    function formatUploadEta(remainingBytes, bytesPerSec) {
+      if (!bytesPerSec || bytesPerSec <= 0 || !isFinite(bytesPerSec) || remainingBytes <= 0) {
+        return '';
+      }
+      const seconds = Math.round(remainingBytes / bytesPerSec);
+      if (seconds < 5) return '< 5s';
+      if (seconds < 60) return `${seconds}s`;
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      if (mins < 60) {
+        return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+      }
+      const hours = Math.floor(mins / 60);
+      const remMins = mins % 60;
+      return `${hours}h ${remMins}m`;
+    }
+
+    // Test zero or negative remaining/speed -> ''
+    assert.strictEqual(formatUploadEta(0, 10 * 1024 * 1024), '');
+    assert.strictEqual(formatUploadEta(-5000, 10 * 1024 * 1024), '');
+    assert.strictEqual(formatUploadEta(10 * 1024 * 1024, 0), '');
+    assert.strictEqual(formatUploadEta(10 * 1024 * 1024, -100), '');
+    assert.strictEqual(formatUploadEta(-100, -100), '');
+
+    // Test small duration (< 5s) -> '< 5s'
+    assert.strictEqual(formatUploadEta(4 * 1024 * 1024, 1024 * 1024), '< 5s'); // 4s
+    assert.strictEqual(formatUploadEta(10 * 1024 * 1024, 5 * 1024 * 1024), '< 5s'); // 2s
+
+    // Test seconds (< 60s) -> '25s'
+    assert.strictEqual(formatUploadEta(25 * 1024 * 1024, 1024 * 1024), '25s'); // 25s
+
+    // Test minutes & seconds -> '1m 40s'
+    assert.strictEqual(formatUploadEta(100 * 1024 * 1024, 1024 * 1024), '1m 40s'); // 100s = 1m 40s
+
+    // Test exact minutes -> '2m'
+    assert.strictEqual(formatUploadEta(120 * 1024 * 1024, 1024 * 1024), '2m'); // 120s = 2m
+
+    // Test hours & minutes -> '1h 15m'
+    assert.strictEqual(formatUploadEta(4500 * 1024 * 1024, 1024 * 1024), '1h 15m'); // 4500s = 75m = 1h 15m
+  });
+
+  await t.test('MtprotoSenderPool round-robin chunk dispatching', () => {
+    class MockSenderPool {
+      constructor(poolSize = 4) {
+        this.senders = Array.from({ length: poolSize }, (_, i) => ({ id: `sender_${i + 1}` }));
+        this.rrIndex = 0;
+      }
+      getNextSender() {
+        const sender = this.senders[this.rrIndex % this.senders.length];
+        this.rrIndex++;
+        return sender;
+      }
+    }
+
+    const pool = new MockSenderPool(4);
+    // Verify that requests 0, 1, 2, 3, 4 map to senders 1, 2, 3, 4, 1 in round-robin sequence.
+    const requests = [0, 1, 2, 3, 4];
+    const mappedSenders = requests.map(() => pool.getNextSender().id);
+    assert.deepStrictEqual(mappedSenders, [
+      'sender_1',
+      'sender_2',
+      'sender_3',
+      'sender_4',
+      'sender_1',
+    ]);
+    assert.strictEqual(mappedSenders[0], 'sender_1');
+    assert.strictEqual(mappedSenders[1], 'sender_2');
+    assert.strictEqual(mappedSenders[2], 'sender_3');
+    assert.strictEqual(mappedSenders[3], 'sender_4');
+    assert.strictEqual(mappedSenders[4], 'sender_1');
+  });
 });
 

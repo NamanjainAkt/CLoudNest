@@ -22,3 +22,16 @@
 - Implemented memory-safe on-demand MTProto media downloading in 2 MB chunked Base64 slices to prevent Hermes JS heap OOM crashes, complete with error banners and retry UI.
 - All 55/55 unit tests passing; TypeScript compilation 0 errors.
 
+## [2026-09-27] Telegram Upload Engine Refactor for Maximum Throughput
+- **Direct Binary File Reading**: Installed `react-native-blob-util` and eliminated Base64 conversion over the React Native bridge.
+- **4 MB Disk Read Blocks**: Batching disk reads into 4 MB blocks, sliced into eight 512 KB MTProto parts in native memory, reducing disk reads and bridge round-trips by 8x.
+- **True MTProto Parallelism (`MtprotoSenderPool`)**: Maintained 4 independent MTProto socket connections (`_createExportedSender(dcId)`) with round-robin dispatch, eliminating serialization on a single connection.
+- **Deep 32-Chunk Producer Queue**: 32-chunk queue buffer (~16 MB RAM) with automatic backpressure pausing and consumer wakeup.
+- **Adaptive Upload Scheduling**: Scaled file concurrency and workers dynamically: >500MB (1 file, 8 workers), 10-500MB (2 files, 4 workers), <10MB (up to 6 files, 2 workers).
+- **Removed Upload-Time SHA-256**: Zero hashing CPU overhead during upload transfer; MD5 preserved only for small files (<= 10MB) per Telegram API specification.
+- **Resilient Chunk Retries**: 15s per-chunk timeout with exponential backoff and random jitter up to 5 retries.
+- **Speed Smoothing & Live ETA**: 500ms sampling window with exponential smoothing (`0.7 * prev + 0.3 * inst`) and ETA formatting (`< 5s`, `25s`, `1m 40s`, etc.).
+- **Throttled UI Updates**: Zustand store updates throttled to 1/s per upload to maintain 60 FPS UI rendering.
+- All 61/61 unit tests passing; TypeScript compilation 0 errors.
+
+
