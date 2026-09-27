@@ -3,18 +3,20 @@
 > Consolidated from full 2026-09-25 ingestion. P0 = data-loss/security/correctness.
 
 ## P0
-
+ 
 1. GCM auth tag never persisted (`files` lacks `auth_tag`) — DB-backed decrypt path unusable; CTR (streaming) vs GCM (cipher/chunking) divergence unreconciled.
 2. No PBKDF2 despite `keyDerivation.ts` docstring + wiki §8 claiming 100k HMAC-SHA512 — master key is raw CSPRNG output.
-3. Lossy mnemonic round-trip (modulo mapping, no checksum) — restore may derive a different key.
-4. Upload queue ephemeral (SQL `upload_queue` table unwired) + foreground-only `setInterval` sync — no background daemon, no resume, restarts at part 0.
+3. ~~Lossy mnemonic round-trip~~ — **RESOLVED (2026-09-26)**: BIP39 standard 24-word recovery implemented in `services/crypto/mnemonic.ts` with official BIP39 test vectors, checksum verification, and wordlist validation (9 unit tests).
+4. Upload queue ephemeral (SQL `upload_queue` table unwired) + foreground-only `setInterval` sync — no background daemon (`expo-task-manager`). (Note: In-app upload engine upgraded to true MTProto parallel senders with adaptive scheduling and chunk-level retry).
 5. Biometric `authenticate()` returns `true` with no hardware — fail-open; key not hardware-bound.
 6. Hardcoded Telegram `apiId/apiHash` fallbacks ship live creds in the bundle.
 7. RNG `Math.random` last-tier fallback can feed nonces/IVs if `expo-crypto` unready.
 
 ## P1
 
-- N+1 folder stats; divergent category taxonomies; full-reload mutations; hardcoded `'4.2 MB/s'` seed speed.
+- N+1 folder stats; divergent category taxonomies; full-reload mutations.
+- ~~Hardcoded '4.2 MB/s' seed speed~~ — **RESOLVED (2026-09-27)**: Seed speed initialized to `'0 MB/s'` and dynamically calculated via 500ms sampling window with exponential smoothing (`0.7 * prev + 0.3 * inst`).
+- ~~File loss on reinstall~~ — **RESOLVED (2026-09-27)**: Auto-scans Telegram channels and Saved Messages on login, boot, and pull-to-refresh to restore SQLite VFS metadata.
 - Zero lists set `removeClippedSubviews/maxToRenderPerBatch/windowSize`; only 2 components `memo`.
 - Systematic <44pt touch targets (chips, icon buttons, checkboxes, modal buttons).
 - Dead: `upload_queue`/`app_settings` tables, `chunking.ts`, `TelemetryBadge`, `showEnclaveBadge`, breadcrumb null-branch, `sizeMB` fallback.
