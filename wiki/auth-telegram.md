@@ -1,6 +1,6 @@
 # Auth & Telegram MTProto Transport
 
-> Sources: `app/(auth)/{sign-in,otp-verify,create-vault}.tsx`, `services/telegram/{countries,types,mtprotoClient,gramjsClient,polyfill}.ts`, `components/auth/{CountryPickerModal,RestoreVaultModal,BiometricLockOverlay}.tsx`.
+> Sources: `app/(auth)/{sign-in,otp-verify,create-vault}.tsx`, `services/telegram/{countries,types,mtprotoClient,gramjsClient,polyfill,reviewBypass}.ts`, `components/auth/{CountryPickerModal,RestoreVaultModal,BiometricLockOverlay}.tsx`.
 
 ## Auth flow
 
@@ -36,3 +36,9 @@ DC3 omitted; IPs hardcoded. `checkDcLatency` is HTTP-HEAD heuristic (1500 ms abo
 - `mtprotoClient.ts` ships hardcoded `apiId/apiHash` fallbacks — live creds in bundle.
 - OTP screen imports `useVaultStore` but never uses it (session set later in create-vault).
 - Hermes RNG depends on polyfill load order; final fallback is `Math.random` (non-CSPRNG) if `expo-crypto` unready.
+
+## Play-review bypass (`reviewBypass.ts`)
+
+- `REVIEW_PHONE_DIGITS 919999999999` (`+91 99999 99999`), `REVIEW_CODE 55555`, `REVIEW_CODE_HASH REVIEW_MODE`. Phone match is digit-normalized so `+91 99999 99999` UI formatting still hits.
+- `MTProtoClient.sendCode` short-circuits review numbers to `{ phoneCodeHash: REVIEW_MODE }` with no GramJS network. `signIn` accepts only `55555` on that hash/phone and returns a synthetic `Review Reviewer` user; `createPrivateVaultChannel` returns a local-only `review-vault` session (persisted to SecureStore) instead of calling Telegram.
+- Verified 2026-09-27: `npm run lint` 0 errors, `npm run test` 73/73 pass. Real-user MTProto path untouched; Play Console testing-credentials use phone `+919999999999` + code `55555`.

@@ -3,6 +3,13 @@ import { TELEGRAM_DATA_CENTERS, AuthSendCodeResponse, TelegramUser, MTProtoUploa
 import { SecureStorageService } from '../crypto/secureStore';
 import { TelegramSession, FileRecord } from '../types/models';
 import { GramJSClient } from './gramjsClient';
+import {
+  REVIEW_CODE_HASH,
+  getReviewSession,
+  getReviewUser,
+  isReviewCode,
+  isReviewPhone,
+} from './reviewBypass';
 
 class NativeMTProtoClient {
   private activeDcId = Number(process.env.EXPO_PUBLIC_TELEGRAM_DC_ID) || 4; // Frankfurt DC4
@@ -107,10 +114,19 @@ class NativeMTProtoClient {
   }
 
   async sendCode(phoneNumber: string): Promise<AuthSendCodeResponse> {
+    if (isReviewPhone(phoneNumber)) {
+      return { phoneCodeHash: REVIEW_CODE_HASH, isRegistered: true, timeoutSeconds: 60 };
+    }
     return await GramJSClient.sendCode(phoneNumber);
   }
 
   async signIn(phoneNumber: string, phoneCodeHash: string, code: string): Promise<TelegramUser> {
+    if (phoneCodeHash === REVIEW_CODE_HASH || isReviewPhone(phoneNumber)) {
+      if (!isReviewCode(code)) {
+        throw new Error('Invalid review code. Enter 55555 for the review account.');
+      }
+      return getReviewUser(phoneNumber);
+    }
     if (code.length < 5 || code.length > 6) {
       throw new Error('Invalid verification code: Must be 5 or 6 digits');
     }
@@ -118,6 +134,13 @@ class NativeMTProtoClient {
   }
 
   async createPrivateVaultChannel(user: TelegramUser): Promise<TelegramSession> {
+    if (isReviewPhone(user.phone)) {
+      const session = getReviewSession(user.phone);
+      this.currentSession = session;
+      this.connected = true;
+      await SecureStorageService.saveTelegramSession(JSON.stringify(session));
+      return session;
+    }
     const session = await GramJSClient.createPrivateVaultChannel(user);
     this.currentSession = session;
     this.connected = true;

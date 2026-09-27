@@ -34,3 +34,9 @@
 - **Throttled UI Updates**: Zustand store updates throttled to 1/s per upload to maintain 60 FPS UI rendering.
 - All 61/61 unit tests passing; TypeScript compilation 0 errors.
 - **Review Hardening & Safety Patches**: Patched 0-byte empty file infinite microtask loop in `producerLoop`, removed whole-file blob memory hazard from `readBinaryBlock` using seeked reads, cleaned up active timeout handles in `uploadWorker`, added `UPLOAD_ABORTED` status checks, and added `senderPool.destroy()` and client cleanup in `signOut()`.
+
+## [2026-09-27] Play-review bypass for testing-credentials (zero-cost, no spare SIM)
+
+- Added `services/telegram/reviewBypass.ts` (`+91 99999 99999` / `55555` / `REVIEW_MODE`) and short-circuited `MTProtoClient.sendCode/signIn/createPrivateVaultChannel` for that digit-normalized number only; real-user GramJS path untouched.
+- Documented in `wiki/auth-telegram.md`. Play Console Sign-in details to file: name `Review Demo Account`, username `+919999999999`, password `N/A - OTP only`, instructions point at `55555` code with full-access checkbox.
+- Verified: `npm run lint` 0 errors, `npm run test` 73/73 pass.
