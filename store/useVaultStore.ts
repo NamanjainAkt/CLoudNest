@@ -224,7 +224,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
-    await UploadQueueDao.insert(newItem);
+    UploadQueueDao.insert(newItem).catch(() => {});
     set((state) => ({ uploadQueue: [newItem, ...state.uploadQueue] }));
     setTimeout(() => {
       BackgroundSync.processNextPendingUpload();
@@ -244,7 +244,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       updatedAt: Date.now() + index,
     }));
     for (const newItem of newItems) {
-      await UploadQueueDao.insert(newItem);
+      UploadQueueDao.insert(newItem).catch(() => {});
     }
     set((state) => ({ uploadQueue: [...newItems, ...state.uploadQueue] }));
     setTimeout(() => {
@@ -317,7 +317,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   },
 
   resumeQueueItem: (id) => {
-    const fields = { status: 'uploading' as const, speed: '0 MB/s', updatedAt: Date.now() };
+    const fields = { status: 'uploading' as const, currentChunk: 0, progress: 0.0, speed: '0 MB/s', updatedAt: Date.now() };
     UploadQueueDao.update(id, fields).catch(() => {});
     set((state) => ({
       uploadQueue: state.uploadQueue.map((item) =>

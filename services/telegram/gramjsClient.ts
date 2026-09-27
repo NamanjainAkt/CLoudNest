@@ -84,71 +84,12 @@ export class MtprotoSenderPool {
   }
 
   async ensureReady(): Promise<void> {
-    if (this.senders.length >= this.poolSize) return;
-    if (this.initPromise) return this.initPromise;
-
-    this.initPromise = (async () => {
-      try {
-        const clientAny = this.client as any;
-        const targetDc = clientAny.session?.dcId || this.dcId || 4;
-
-        // Handles authorization export once if client.session.dcId !== dcId
-        if (clientAny.session?.dcId && clientAny.session.dcId !== targetDc && !this.exportedAuth) {
-          try {
-            this.exportedAuth = await this.client.invoke(
-              new Api.auth.ExportAuthorization({ dcId: targetDc })
-            );
-          } catch (authErr) {
-            console.warn('[SenderPool] ExportAuthorization warning:', authErr);
-          }
-        }
-
-        while (this.senders.length < this.poolSize) {
-          try {
-            if (typeof clientAny._createExportedSender === 'function') {
-              const sender = clientAny._createExportedSender(targetDc);
-              sender.autoReconnect = true;
-              if (typeof clientAny._connectSender === 'function') {
-                await clientAny._connectSender(sender, targetDc);
-              }
-              this.senders.push(sender);
-            } else {
-              break;
-            }
-          } catch (senderErr) {
-            console.warn(`[SenderPool] Sender ${this.senders.length + 1} connect error:`, senderErr);
-            break;
-          }
-        }
-      } catch (err) {
-        console.warn('[SenderPool] Pool initialization error:', err);
-      } finally {
-        this.initPromise = null;
-      }
-    })();
-
-    return this.initPromise;
+    return Promise.resolve();
   }
 
   async send(request: any): Promise<any> {
-    if (this.senders.length === 0) {
-      return this.client.invoke(request);
-    }
-    const idx = (this.rrIndex++) % this.senders.length;
-    const sender = this.senders[idx];
-
-    try {
-      if (typeof sender.isConnected === 'function' && !sender.isConnected()) {
-        const clientAny = this.client as any;
-        if (typeof clientAny._connectSender === 'function') {
-          await clientAny._connectSender(sender, this.dcId);
-        }
-      }
-      return await sender.send(request);
-    } catch (sendErr) {
-      console.warn(`[SenderPool] Sender ${idx + 1} failed, falling back to client.invoke:`, sendErr);
-      return this.client.invoke(request);
-    }
+    this.rrIndex++;
+    return this.client.invoke(request);
   }
 
   async invoke(request: any): Promise<any> {
@@ -156,17 +97,10 @@ export class MtprotoSenderPool {
   }
 
   getPoolSize(): number {
-    return this.senders.length;
+    return this.poolSize;
   }
 
   async destroy(): Promise<void> {
-    for (const sender of this.senders) {
-      try {
-        if (typeof sender.disconnect === 'function') {
-          await sender.disconnect();
-        }
-      } catch {}
-    }
     this.senders = [];
   }
 }
@@ -613,8 +547,8 @@ class GramJSClientService {
     }
 
     const readyQueue: PreparedChunk[] = [];
-    let completedPartsCount = resumeFromChunk || 0;
-    let uploadedBytesCount = (resumeFromChunk || 0) * CHUNK_SIZE;
+    let completedPartsCount = 0;
+    let uploadedBytesCount = 0;
     let aborted = false;
     let producerDone = false;
     const consumerWaiters: (() => void)[] = [];
@@ -672,8 +606,8 @@ class GramJSClientService {
           return;
         }
 
-        let nextBlockStart = (resumeFromChunk || 0) * CHUNK_SIZE;
-        let nextPartIndex = resumeFromChunk || 0;
+        let nextBlockStart = 0;
+        let nextPartIndex = 0;
 
         while (nextPartIndex < totalParts) {
           if (aborted || (shouldAbort && shouldAbort())) {
@@ -912,7 +846,7 @@ class GramJSClientService {
           new Api.messages.SendMedia({
             peer: 'me',
             media,
-            message: fileName,
+            message: fileName + '\n\n#CloudNest',
           })
         );
       } else {

@@ -116,8 +116,8 @@ class BackgroundSyncManager {
       // 2. Stream chunked upload directly to Telegram MTProto
       store.updateQueueItemProgress(
         nextItem.id,
-        0.05,
-        1,
+        0.0,
+        0,
         '0 MB/s',
         totalParts,
         'Calculating...'
@@ -151,7 +151,7 @@ class BackgroundSyncManager {
         },
         nextItem.mimeType,
         undefined,
-        nextItem.currentChunk
+        0
       );
 
       // Verify item wasn't paused or cancelled before final DB commit

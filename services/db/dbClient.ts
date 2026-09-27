@@ -25,9 +25,13 @@ export async function getDb(): Promise<SQLite.SQLiteDatabase> {
         eta TEXT,
         createdAt INTEGER,
         updatedAt INTEGER,
-        retryCount INTEGER
+        retryCount INTEGER,
+        errorMessage TEXT
       );
     `);
+    try {
+      await databaseInstance.execAsync(`ALTER TABLE upload_queue_v2 ADD COLUMN errorMessage TEXT;`);
+    } catch {}
     await seedInitialDataIfNeeded(databaseInstance);
   }
   return databaseInstance;
@@ -45,41 +49,91 @@ async function seedInitialDataIfNeeded(db: SQLite.SQLiteDatabase) {
   } catch {}
 }
 
+const VALID_QUEUE_COLUMNS = new Set([
+  'targetFolderId',
+  'filePath',
+  'fileName',
+  'fileSize',
+  'mimeType',
+  'status',
+  'progress',
+  'currentChunk',
+  'speed',
+  'totalChunks',
+  'eta',
+  'createdAt',
+  'updatedAt',
+  'retryCount',
+  'errorMessage',
+]);
+
 export const UploadQueueDao = {
   async getAll(): Promise<UploadQueueItem[]> {
-    const db = await getDb();
-    const rows = await db.getAllAsync<any>('SELECT * FROM upload_queue_v2 ORDER BY createdAt ASC');
-    return rows;
+    try {
+      const db = await getDb();
+      const rows = await db.getAllAsync<any>('SELECT * FROM upload_queue_v2 ORDER BY createdAt ASC');
+      return rows || [];
+    } catch (err) {
+      console.warn('[UploadQueueDao] getAll error:', err);
+      return [];
+    }
   },
   async insert(item: UploadQueueItem): Promise<void> {
-    const db = await getDb();
-    await db.runAsync(
-      `INSERT INTO upload_queue_v2 (id, targetFolderId, filePath, fileName, fileSize, mimeType, status, progress, currentChunk, speed, totalChunks, eta, createdAt, updatedAt, retryCount)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        item.id, item.targetFolderId ?? null, item.filePath, item.fileName, item.fileSize, item.mimeType, item.status,
-        item.progress, item.currentChunk, item.speed, item.totalChunks, item.eta ?? null, item.createdAt, item.updatedAt, item.retryCount
-      ]
-    );
+    try {
+      const db = await getDb();
+      await db.runAsync(
+        `INSERT OR REPLACE INTO upload_queue_v2 (id, targetFolderId, filePath, fileName, fileSize, mimeType, status, progress, currentChunk, speed, totalChunks, eta, createdAt, updatedAt, retryCount, errorMessage)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          item.id,
+          item.targetFolderId ?? null,
+          item.filePath,
+          item.fileName,
+          item.fileSize,
+          item.mimeType,
+          item.status,
+          item.progress,
+          item.currentChunk,
+          item.speed,
+          item.totalChunks ?? null,
+          item.eta ?? null,
+          item.createdAt,
+          item.updatedAt,
+          item.retryCount,
+          (item as any).errorMessage ?? null,
+        ]
+      );
+    } catch (err) {
+      console.warn('[UploadQueueDao] insert error:', err);
+    }
   },
   async update(id: string, partialItem: Partial<UploadQueueItem>): Promise<void> {
-    const db = await getDb();
-    const setClauses: string[] = [];
-    const values: any[] = [];
-    for (const [key, value] of Object.entries(partialItem)) {
-      setClauses.push(`${key} = ?`);
-      values.push(value === undefined ? null : value);
+    try {
+      const db = await getDb();
+      const setClauses: string[] = [];
+      const values: any[] = [];
+      for (const [key, value] of Object.entries(partialItem)) {
+        if (!VALID_QUEUE_COLUMNS.has(key)) continue;
+        setClauses.push(`${key} = ?`);
+        values.push(value === undefined ? null : value);
+      }
+      if (setClauses.length === 0) return;
+      values.push(id);
+      await db.runAsync(
+        `UPDATE upload_queue_v2 SET ${setClauses.join(', ')} WHERE id = ?`,
+        values
+      );
+    } catch (err) {
+      console.warn('[UploadQueueDao] update error:', err);
     }
-    if (setClauses.length === 0) return;
-    values.push(id);
-    await db.runAsync(
-      `UPDATE upload_queue_v2 SET ${setClauses.join(', ')} WHERE id = ?`,
-      values
-    );
   },
   async delete(id: string): Promise<void> {
-    const db = await getDb();
-    await db.runAsync('DELETE FROM upload_queue_v2 WHERE id = ?', [id]);
+    try {
+      const db = await getDb();
+      await db.runAsync('DELETE FROM upload_queue_v2 WHERE id = ?', [id]);
+    } catch (err) {
+      console.warn('[UploadQueueDao] delete error:', err);
+    }
   }
 };
 
