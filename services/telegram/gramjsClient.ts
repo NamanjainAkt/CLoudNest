@@ -900,7 +900,7 @@ class GramJSClientService {
         new Api.messages.SendMedia({
           peer: targetPeer,
           media,
-          message: fileName,
+          message: fileName + '\n\n#CloudNest',
         })
       );
     } catch (peerErr: any) {
@@ -982,6 +982,14 @@ class GramJSClientService {
         const doc = (msg.media && (msg.media.document || msg.document)) || msg.document;
         const photo = (msg.media && (msg.media.photo || msg.photo)) || msg.photo;
 
+        if (doc || photo) {
+          // If the message is from 'me' (Saved Messages), strictly ensure it's a CloudNest file
+          if (sourcePeer === 'me') {
+            const msgText = (msg.message && typeof msg.message === 'string') ? msg.message : '';
+            if (!msgText.includes('[CloudNest E2EE]') && !msgText.includes('#CloudNest')) {
+              continue; // Skip personal files not uploaded by CloudNest
+            }
+          }
         if (doc) {
           seenCompoundKeys.add(compoundKey);
           let fileName = '';
