@@ -33,5 +33,4 @@
 - **Speed Smoothing & Live ETA**: 500ms sampling window with exponential smoothing (`0.7 * prev + 0.3 * inst`) and ETA formatting (`< 5s`, `25s`, `1m 40s`, etc.).
 - **Throttled UI Updates**: Zustand store updates throttled to 1/s per upload to maintain 60 FPS UI rendering.
 - All 61/61 unit tests passing; TypeScript compilation 0 errors.
-
-
+- **Review Hardening & Safety Patches**: Patched 0-byte empty file infinite microtask loop in `producerLoop`, removed whole-file blob memory hazard from `readBinaryBlock` using seeked reads, cleaned up active timeout handles in `uploadWorker`, added `UPLOAD_ABORTED` status checks, and added `senderPool.destroy()` and client cleanup in `signOut()`.
