@@ -132,8 +132,8 @@ class BackgroundSyncManager {
         masterKey || '',
         (progress, currentPart, total, speedText, eta) => {
           const now = Date.now();
-          // Throttle store updates to once per 1000ms unless complete (progress >= 1.0)
-          if (progress >= 1.0 || now - lastProgressDispatchTime >= 1000) {
+          // Throttle store updates to once per 400ms unless complete (progress >= 1.0)
+          if (progress >= 1.0 || now - lastProgressDispatchTime >= 400) {
             lastProgressDispatchTime = now;
             store.updateQueueItemProgress(
               nextItem.id,

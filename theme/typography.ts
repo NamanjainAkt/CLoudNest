@@ -1,7 +1,7 @@
 // theme/typography.ts
 // Direct extraction from stitch_cloudnest_ui_design_system/cloudnest_system/DESIGN.md
 
-import { TextStyle } from 'react-native';
+import { TextStyle, Platform } from 'react-native';
 
 export interface TypographyScale {
   display: TextStyle;
@@ -89,7 +89,7 @@ export const Typography: TypographyScale = {
     letterSpacing: 0.2,
   },
   monoSm: {
-    fontFamily: 'Courier', // Fallback to monospace or JetBrains Mono when loaded
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
     fontSize: 11,
     lineHeight: 14,
     fontWeight: '500',

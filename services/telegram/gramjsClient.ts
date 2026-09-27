@@ -56,16 +56,12 @@ export function formatUploadEta(remainingBytes: number, bytesPerSec: number): st
 }
 
 export function getAdaptiveWorkerCount(fileSize: number): number {
-  if (fileSize > 500 * 1024 * 1024) {
-    // Large files (> 500 MB): 8 chunk workers
+  if (fileSize > 200 * 1024 * 1024) {
+    // Large files (> 200 MB): 8 chunk workers
     return 8;
   }
-  if (fileSize >= 10 * 1024 * 1024) {
-    // Medium files (10 to 500 MB): 4 chunk workers
-    return 4;
-  }
-  // Small files (< 10 MB): 2 chunk workers
-  return 2;
+  // Standard files: 4 chunk workers for true parallelism
+  return 4;
 }
 
 export class MtprotoSenderPool {
@@ -110,17 +106,22 @@ export async function readBinaryBlock(
   position: number,
   length: number
 ): Promise<Buffer> {
-  const cleanPath = filePath.replace(/^file:\/\//, '');
-
-  // 1. Native direct binary via react-native-blob-util if available
+  // Direct seeked read: loads 4 MB slice directly into memory without temp file disk churn
   try {
+    const base64Chunk = await FileSystem.readAsStringAsync(filePath, {
+      encoding: FileSystem.EncodingType.Base64,
+      position,
+      length,
+    });
+    return Buffer.from(base64Chunk, 'base64');
+  } catch (fsErr) {
+    const cleanPath = filePath.replace(/^file:\/\//, '');
     if (
       ReactNativeBlobUtil &&
       ReactNativeBlobUtil.fs &&
       typeof ReactNativeBlobUtil.fs.slice === 'function' &&
       typeof ReactNativeBlobUtil.fs.readFile === 'function' &&
-      ReactNativeBlobUtil.fs.dirs &&
-      ReactNativeBlobUtil.fs.dirs.CacheDir
+      ReactNativeBlobUtil.fs.dirs?.CacheDir
     ) {
       const tempPath = `${ReactNativeBlobUtil.fs.dirs.CacheDir}/_disk_blk_${Date.now()}_${position}.bin`;
       try {
@@ -133,15 +134,8 @@ export async function readBinaryBlock(
         }
       }
     }
-  } catch {}
-
-  // 2. Fallback to Expo FileSystem seeked read (only reads the specified 4 MB slice, not the whole file)
-  const base64Chunk = await FileSystem.readAsStringAsync(filePath, {
-    encoding: FileSystem.EncodingType.Base64,
-    position,
-    length,
-  });
-  return Buffer.from(base64Chunk, 'base64');
+    throw fsErr;
+  }
 }
 
 class GramJSClientService {

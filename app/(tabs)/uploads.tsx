@@ -7,7 +7,7 @@ import {
   FlatList,
   TouchableOpacity,
 } from 'react-native';
-import { PauseCircle, Cloud, UploadCloud } from 'lucide-react-native';
+import { PauseCircle, Cloud, UploadCloud, ArrowUp } from 'lucide-react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { TopHeader } from '../../components/common/TopHeader';
 import { FilterChip } from '../../components/common/FilterChip';
@@ -57,12 +57,12 @@ export default function UploadsScreen() {
     0
   );
 
-  const speedBadgeText =
+  const speedLabel =
     totalActiveSpeedMBs > 0
-      ? `↑ ${totalActiveSpeedMBs.toFixed(1)} MB/s`
+      ? `${totalActiveSpeedMBs.toFixed(1)} MB/s`
       : activeCount > 0
-      ? '↑ Calculating...'
-      : '↑ 0 MB/s';
+      ? 'Calculating...'
+      : '0 MB/s';
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.surface }]}>
@@ -95,11 +95,12 @@ export default function UploadsScreen() {
               <View
                 style={[
                   styles.speedBadge,
-                  { backgroundColor: colors.surfaceContainer },
+                  { backgroundColor: colors.surfaceContainer, flexDirection: 'row', alignItems: 'center' },
                 ]}
               >
+                <ArrowUp size={11} color={colors.primary} style={{ marginRight: 3 }} />
                 <Text style={[typography.monoSm, { color: colors.primary, fontWeight: '600' }]}>
-                  {speedBadgeText}
+                  {speedLabel}
                 </Text>
               </View>
 
