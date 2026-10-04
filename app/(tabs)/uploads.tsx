@@ -129,7 +129,7 @@ export default function UploadsScreen() {
               ]}
               numberOfLines={1}
             >
-              Private & Secure • Automatic Cloud Sync
+              Automatic Cloud Sync
             </Text>
           </View>
         </View>

@@ -8,7 +8,6 @@ import {
   FileArchive,
   Music,
   File,
-  Cloud,
   Star,
   MoreVertical,
 } from 'lucide-react-native';
@@ -100,11 +99,6 @@ export const FileListItem = memo<FileListItemProps>(({ file, onPress, onMorePres
           ) : (
             icon
           )}
-          {file.isEncrypted && (
-            <View style={[styles.lockBadge, { backgroundColor: colors.primary }]}>
-              <Cloud size={8} color={colors.onPrimary} />
-            </View>
-          )}
         </View>
 
         {/* File name and metadata */}
@@ -185,16 +179,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 10,
-  },
-  lockBadge: {
-    position: 'absolute',
-    bottom: 2,
-    right: 2,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   infoCol: {
     marginLeft: 12,

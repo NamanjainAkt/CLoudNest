@@ -35,7 +35,6 @@ import {
   extractCountryAndNumber,
 } from '../../services/telegram/countries';
 import { CountryPickerModal } from '../../components/auth/CountryPickerModal';
-import { RestoreVaultModal } from '../../components/auth/RestoreVaultModal';
 
 export default function SignInScreen() {
   const insets = useSafeAreaInsets();
@@ -47,7 +46,6 @@ export default function SignInScreen() {
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [countryPickerVisible, setCountryPickerVisible] = useState(false);
-  const [restoreModalVisible, setRestoreModalVisible] = useState(false);
 
   // Phone input handler with auto international format detector
   const handlePhoneChange = (input: string) => {
@@ -370,12 +368,6 @@ export default function SignInScreen() {
         onSelect={handleCountrySelect}
         selectedCountryCode={selectedCountry.code}
       />
-
-      {/* Restore Vault from 12-Word Recovery Phrase Modal */}
-      <RestoreVaultModal
-        visible={restoreModalVisible}
-        onClose={() => setRestoreModalVisible(false)}
-      />
     </View>
   );
 }
@@ -505,12 +497,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 999,
-  },
-  restoreBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 14,
-    paddingVertical: 8,
   },
 });

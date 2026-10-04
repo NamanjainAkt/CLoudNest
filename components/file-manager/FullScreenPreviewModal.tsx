@@ -571,7 +571,7 @@ export const FullScreenPreviewModal: React.FC<FullScreenPreviewModalProps> = ({
             <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
               <ShieldCheck size={11} color={colors.primary} style={{ marginRight: 4 }} />
               <Text style={[typography.monoSm, { color: colors.onSurfaceVariant, fontSize: 10 }]}>
-                Cloud Verified • {(file.size / (1024 * 1024)).toFixed(2)} MB
+                Telegram Cloud • {(file.size / (1024 * 1024)).toFixed(2)} MB
               </Text>
             </View>
           </View>

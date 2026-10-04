@@ -93,8 +93,8 @@ export const BiometricLockOverlay: React.FC<BiometricLockOverlayProps> = ({
   const handlePasscodeFallback = () => {
     Alert.prompt
       ? Alert.prompt(
-          'Master Passcode',
-          'Enter your device passcode or vault master key to unlock:',
+          'Device Passcode',
+          'Enter your device passcode to unlock:',
           [
             { text: 'Cancel', style: 'cancel' },
             {
