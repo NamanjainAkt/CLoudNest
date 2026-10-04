@@ -6,6 +6,7 @@
 > **Security:** Zero-Knowledge Client-Side AES-256-GCM Authenticated Encryption • PBKDF2 • Expo SecureStore • Hardware Biometrics  
 > **Design System:** Stitch Obsidian Dark (`#12131a`) / Institutional Light (`#F2F2F7`)  
 > **Verification Status:** 21/21 Expo Doctor Checks Passed • 61/61 Unit Tests Passed (verified 2026-09-27) • 0 TypeScript Errors  
+> **⚠️ 2026-10-04: file-content encryption REMOVED — live upload/download paths store plaintext on Telegram (verified by code read). All zero-knowledge / E2EE / AES-256 claims below are stale. See `wiki/crypto-security.md` + `wiki/log.md`. Scrub or restore encryption before any store submission.**
 
 ---
 

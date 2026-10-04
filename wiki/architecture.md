@@ -4,7 +4,7 @@
 
 ## Dataflow
 
-`React Native UI (12 Expo Router screens)` → `BiometricLockOverlay` gate → `useVaultStore` (Zustand) → `SQLite VFS` + `LRU CacheManager` → `AES-256-GCM/CTR crypto` ↔ `SecureStore` → `GramJS WSS client` → `DC edge router (default Frankfurt DC4)` → `private vault channel` (fallback: Saved Messages `me`) → encrypted `.enc` blobs.
+`React Native UI (12 Expo Router screens)` → `BiometricLockOverlay` gate → `useVaultStore` (Zustand) → `SQLite VFS` + `LRU CacheManager` → `GramJS WSS client` → `DC edge router (default Frankfurt DC4)` → `private vault channel` (fallback: Saved Messages `me`) → plaintext blobs. (Encryption removed 2026-10-04 — former `AES-256-GCM/CTR crypto ↔ SecureStore` hop no longer transforms bytes; see `crypto-security.md`.)
 
 ## Boot order (verified)
 
@@ -21,7 +21,7 @@
 | UI components (23 files) | `components/{common,auth,dashboard,file-manager,queue,settings}/` (see `ui-screens.md`) |
 | Design engine | `theme/{colors,typography,spacing}.ts`, `theme/ThemeContext.tsx` (no `shadows.ts` despite AGENTS.md §5.1 listing it) |
 | VFS + DAO | `services/db/{schema,dbClient}.ts` |
-| Crypto | `services/crypto/{cipher,keyDerivation,mnemonic,secureStore,biometrics}.ts` |
+| Crypto (removed — dead code, see `crypto-security.md`) | `services/crypto/{cipher,keyDerivation,mnemonic,secureStore,biometrics}.ts` (only SecureStore session/prefs + biometric gate still functional) |
 | Transport | `services/telegram/{types,polyfill,mtprotoClient,gramjsClient,countries}.ts` |
 | Storage/sync | `services/storage/{chunking,cacheManager}.ts`, `services/sync/backgroundSync.ts` |
 | State | `store/useVaultStore.ts` |

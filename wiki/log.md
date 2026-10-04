@@ -40,3 +40,40 @@
 - Added `services/telegram/reviewBypass.ts` (`+91 99999 99999` / `55555` / `REVIEW_MODE`) and short-circuited `MTProtoClient.sendCode/signIn/createPrivateVaultChannel` for that digit-normalized number only; real-user GramJS path untouched.
 - Documented in `wiki/auth-telegram.md`. Play Console Sign-in details to file: name `Review Demo Account`, username `+919999999999`, password `N/A - OTP only`, instructions point at `55555` code with full-access checkbox.
 - Verified: `npm run lint` 0 errors, `npm run test` 73/73 pass.
+
+## [2026-09-30] Play Console Data safety form completed
+
+- Filled all 5 steps for app `4973211743768335546`; saved (Play Console: "Change saved. Send for review in Publishing overview"). Not yet sent for review — "Send app for review" stays disabled until the remaining dashboard setup tasks are done (Government apps, Financial features, Health, category + contact details, store listing, closed test).
+- Declared: collects + shares **Personal info → Phone number** and **Files and docs**; encrypted in transit **Yes**; deletion request **Yes** (`https://cloudnest-v1.netlify.app/`, also used as the store-listing Privacy policy). Everything else declared not collected/shared — no analytics/crash/ads SDK exists in `package.json`.
+- Basis: phone number goes to Telegram via `auth.sendCode`/`auth.signIn` (no `auth.signUp` → "no in-app account creation"); file contents are client-side AES-256 with the key only in SecureStore (Play end-to-end-encryption exemption), but **file name + MIME type are transmitted in cleartext** via `DocumentAttributeFilename` and the `#CloudNest` caption, which is why "Files and docs" is declared; deletion is real — `deleteMessages(..., {revoke: true})` + cache + SQLite wipe.
+- New page `wiki/play-compliance.md`. Open risk logged there: the cleartext filename/mime path contradicts the user-facing zero-knowledge/E2EE claim.
+
+## [2026-09-30] Play setup 11/11 — declarations, store settings, listing
+
+- Dashboard "Finish setting up your app" went 6/11 → **11/11** (setup card gone). Saved, not sent for review: Government apps = No; Financial features = none; Health = none; category = **Productivity** (tags skipped); contact email `namanjainakt007@gmail.com` + website `https://cloudnest-v1.netlify.app/`.
+- Default store listing (en-US) saved: short (70 chars) + full (~1.4k chars) descriptions as approved; icon 512×512 (resized from `assets/icon.png`); feature graphic 1024×500 (PIL, brand icon + tagline); 4 screenshots 1080×1920 9:16 rendered from Stitch `code.html` at 540×960 CSS ×2 DPR mobile emulation (home, uploads, file inspector, search; folder-browser render dropped for half-empty frame). AI-asset declaration: "Don't label assets". All six files kept in repo `store-listing/`.
+- "Send app for review" still disabled — remaining gates are release-track work: closed-testing release + ≥12 testers for ≥14 days (0 now), then production access. Package `com.cloudnest.vault`.
+
+## [2026-10-01] Foreground-service demo video for the FGS declaration
+
+- Release draft (closed track, bundle vc3 1.0.0 attached, notes saved) was blocked on 2 declarations: Foreground Service (needs demo video URL) and Photo/Video permissions (justifications saved).
+- Built `fgs-demo-video/cloudnest-foreground-service-demo.mp4` (1920×1080, 60s): 5-scene HyperFrames explainer with Kokoro voiceover, Stitch-blueprint screenshots, reconstructed FGS notification card. `npm run check` clean, 54/54 contrast.
+- Waiting on user: YouTube upload URL → FGS video field; tester email list → closed-track testers + rollout.
+
+## [2026-10-01] Closed testing release submitted for review
+
+- Attached user-uploaded bundle vc3/1.0.0 to the Alpha draft + release notes; FGS declaration saved with the YouTube demo URL; photo/video justifications saved; ad-ID declaration = No (unblocked the submit gate).
+- Submitted 14 changes for review (full rollout, 177 countries, `Nfit testers` list). Status: "Changes in review", Google review typically ≤7 days. Production still needs ≥12 testers × 14 days post-approval.
+
+## [2026-10-04] Encryption removal verified + wiki corrected
+
+- User stated file encryption was removed entirely. Verified by code read (no test run): `uploadFileStreaming` (`gramjsClient.ts:501+`) sends raw 512 KB parts (`masterKeyHex` unused, MD5-only ≤10 MB); `downloadFile` (`gramjsClient.ts:1065+`) appends raw chunks; preview uses bytes directly; `backgroundSync.ts` writes `isEncrypted:false`/`encryptionIv:''` with `'unencrypted'` key fallback. `cipher.ts`/`chunking.ts processFileForUpload` have zero live callers; `uploadEncryptedBlob` never encrypts despite `.enc`/E2EE labels.
+- Pages touched: `crypto-security.md` (rewritten as removal record), `storage-sync.md`, `architecture.md`, `auth-telegram.md`, `known-gaps.md` (P0-1/P0-2 superseded, new P0-8/9/10), `play-compliance.md` (new P0 E2EE-exemption-invalid), `index.md`.
+- Notable: share-link design from 2026-10-04 needs no key-distribution step now (plaintext blobs), but every zero-knowledge/E2EE claim (root `WIKI.md` + `docs/WIKI.md`, AGENTS.md, PRD, store listing, in-app copy) is stale until scrubbed or encryption is restored. Root `WIKI.md`/`docs/WIKI.md` got a staleness banner only (hashes still match) — full §§8/17/27 rewrite still open.
+
+## [2026-10-04] UI encryption-keyword scrub
+
+- Removed user-visible false encryption promises: `RestoreVaultModal` unmounted from `sign-in.tsx` (was already dead — no trigger ever set it visible) with its import/state/`restoreBtn` style; deleted unreachable `app/(auth)/backup-phrase.tsx` (+ route), `components/auth/RestoreVaultModal.tsx`, unused `components/settings/RecoveryPhraseModal.tsx`.
+- Reworded: `BiometricLockOverlay` passcode prompt (dropped "vault master key"), uploads subtitle ("Private & Secure •" dropped), preview header ("Cloud Verified" → "Telegram Cloud"), `FileListItem` dead `isEncrypted` badge + `Cloud` import + `lockBadge` style removed.
+- Left as-is (no encryption claim): "Private … Telegram Cloud" cards, "Private Search", biometric screen-lock row, `TelemetryBadge` variants / `showEnclaveBadge` (never rendered).
+- Verified: `npm run lint` 0 errors, `npm run test` 73/73 pass. Remaining dead surface is non-UI: `cipher.ts`, `chunking.ts`, `mnemonic.ts`, `cloudnest_master_key`, `is_encrypted`/`encryption_iv` columns.

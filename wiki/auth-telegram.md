@@ -29,7 +29,7 @@ DC3 omitted; IPs hardcoded. `checkDcLatency` is HTTP-HEAD heuristic (1500 ms abo
 - `useWSS:true`, `connectionRetries:5`, `autoReconnect:true`; `getSender` pinned to primary `_sender` (avoids 30 s exported-sender drop).
 - `createPrivateVaultChannel`: dedupes by title `CloudNest Private Vault [E2EE]` via `getDialogs(30)` else `channels.CreateChannel`; any failure → `'me'` (Saved Messages, zero access-hash).
 - `resolveTargetPeer`: `getInputEntity` → `getDialogs(50)` re-prime → `'me'`.
-- Uploads: `uploadEncryptedBlob` (whole-buffer `sendFile`, progress only) and `uploadFileStreaming` (production path — 512 KB slices, AES-256-CTR 16 B IV, `SaveFilePart` ≤10 MB / `SaveBigFilePart` >10 MB, ≤4 retries + `FLOOD_WAIT_X` sleep). No download path.
+- Uploads: `uploadEncryptedBlob` (legacy whole-buffer `sendFile`, progress only — name/caption/`.enc` suffix are mislabels, no encryption inside) and `uploadFileStreaming` (production path — raw 512 KB slices, `SaveFilePart` ≤10 MB / `SaveBigFilePart` >10 MB, 5 chunk retries + `FLOOD_WAIT_X` sleep; `masterKeyHex` param accepted but unused). Download: `downloadFile` (`iterDownload` raw append, no decryption).
 
 ## Gaps
 

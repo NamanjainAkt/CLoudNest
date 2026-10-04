@@ -1,20 +1,28 @@
-# Zero-Knowledge Crypto & Security
+# File Security (Encryption Removed — Plaintext Storage)
 
-> Sources: `services/crypto/{cipher,keyDerivation,mnemonic,secureStore,biometrics}.ts`, `services/storage/chunking.ts`, `components/settings/RecoveryPhraseModal.tsx`.
+> Sources: `services/crypto/{cipher,keyDerivation,mnemonic,secureStore,biometrics}.ts`, `services/storage/chunking.ts`, `services/telegram/gramjsClient.ts` (`uploadFileStreaming`, `downloadFile`, `uploadEncryptedBlob`), `services/sync/backgroundSync.ts`, `app/(auth)/create-vault.tsx`, `app/(auth)/backup-phrase.tsx`.
+> Status (verified 2026-10-04 by code read): **file-content encryption is NOT applied anywhere in the live path. Files are stored as plaintext on Telegram.** All zero-knowledge / E2EE / AES-256 claims in older wiki pages, root `WIKI.md`, and store-listing copy are stale and must not ship.
 
-## What exists
+## What actually happens (verified)
 
-- `cipher.ts`: AES-256-GCM via `crypto-browserify`; 12 B IV, 16 B auth tag, Base64 ciphertext + SHA-256(plaintext) digest. `decryptBuffer` restores via `setAuthTag`.
-- `keyDerivation.ts`: `generateMasterSeed()` — 32 B from `expo-crypto`; `formatKeyFingerprint` (`0xXXXX…XXXX`, fallback `0x9F4C…82EA`).
-- `mnemonic.ts`: custom 12-word recovery (NOT BIP39) with ~500-word a–d list; `seedHexToMnemonic` / `mnemonicToSeedHex`.
-- `secureStore.ts` keys: `cloudnest_master_key`, `cloudnest_telegram_session`, `cloudnest_gramjs_session`, `cloudnest_app_pin`, `cloudnest_biometrics_enabled`, `cloudnest_recent_searches` (≤10), `cloudnest_max_cache_bytes`.
-- `biometrics.ts`: Face → Fingerprint → Iris priority; app-launch + background-resume auto-lock in `app/_layout.tsx`; device-passcode fallback.
+- Upload (`gramjsClient.ts uploadFileStreaming`): raw 4 MB disk reads → 512 KB MTProto parts → `SaveFilePart` / `SaveBigFilePart`. The `masterKeyHex` parameter is accepted but **never used** — no cipher call in the producer/worker loop. Only MD5 for ≤10 MB files (Telegram API requirement).
+- Download (`gramjsClient.ts downloadFile`): `iterDownload` appends raw chunks to disk. No `decryptBuffer` call.
+- Preview (`FullScreenPreviewModal.tsx triggerCloudDownload`): uses the downloaded bytes directly. No decryption step.
+- Queue commit (`backgroundSync.ts`): `getMasterKey() || 'unencrypted'`, records `isEncrypted: false`, `encryptionIv: ''`.
+- Legacy `uploadEncryptedBlob` performs **no encryption** despite its name, the `.enc` filename suffix, and the `[CloudNest E2EE]` caption — labels only.
 
-## Gaps (verified, load-bearing first)
+## Dead / misleading leftovers (still in repo, no effect)
 
-1. **P0 — GCM auth tag never persisted.** `files` table has `encryption_iv` but no `auth_tag` column, so `decryptBuffer` cannot be fed from DB. The streaming uploader uses AES-256-CTR (no tag) — two divergent crypto paths; wiki §8 (GCM) vs §26/27 (CTR) need reconciliation.
-2. **P0 — No PBKDF2.** `keyDerivation.ts` docstring claims PBKDF2-HMAC-SHA512/100k iterations; implementation is raw CSPRNG output — no password stretching, salt, or iterations.
-3. **P0 — Lossy mnemonic round-trip.** `seed→words→seed ≠ identity` (modulo mapping + self-duplicated halves); no checksum/entropy validation; truncated wordlist; unknown words silently remapped.
-4. **P1 — Biometric bypass.** `authenticate()` returns `true` when no hardware/enrolled; no auto-lock timeout; master key not hardware-bound (gate only).
-5. **P1 — PIN stored plaintext** in SecureStore; no `kSecAccessControl` biometric binding.
-6. **P2 — `chunking.ts` (1 MB GCM chunker) is dead code** — sync uses 512 KB CTR streaming; full-file `atob/btoa` buffering would OOM on Hermes.
+- `cipher.ts` (`encryptBuffer`/`decryptBuffer`, AES-256-GCM): sole caller is `ChunkingService.processFileForUpload`, which itself has **zero callers**. Dead code.
+- `chunking.ts` (1 MB GCM chunker): dead — sync uses 512 KB raw streaming.
+- `keyDerivation.ts` (`generateMasterSeed`): `create-vault.tsx` still generates and saves a seed to SecureStore (`cloudnest_master_key`), but nothing encrypts with it.
+- `mnemonic.ts` + `backup-phrase.tsx` + `RestoreVaultModal`: recovery-phrase UX still exists, but the phrase protects nothing — restoring it does not decrypt anything because blobs are plaintext.
+- `biometrics.ts` + `BiometricLockOverlay`: app-level access gate only. Does not encrypt data at rest; `authenticate()` still fail-open (`true` with no hardware).
+- DB columns `files.is_encrypted` / `encryption_iv`: always written `0` / `''`. `upload_queue(_v2).status` still lists an `encrypting` state that is never entered.
+- MTProto transport TLS (WSS to Telegram DCs) still applies — bytes are protected **in transit** to Telegram, but stored **readable** by anyone with access to the vault channel / Saved Messages / session.
+
+## Consequences
+
+1. Confidentiality now rests solely on the Telegram account + session. Anyone with the session string, channel access, or a share link gets readable files — which is exactly what makes share links trivial to implement (no key distribution needed), at the cost of the zero-knowledge story.
+2. `.enc` suffixes, `[CloudNest E2EE]` captions, "Encrypted / Protected & Verified" UI copy, and the `AES-256 encrypted files` store-listing short description are **false labels** — see `known-gaps.md` P0 and `play-compliance.md`.
+3. Play Data Safety end-to-end-encryption exemption no longer applies — file contents must be declared as collected/shared without that cover (see `play-compliance.md` P0).

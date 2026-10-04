@@ -16,7 +16,7 @@ Limit 1 GB (`cloudnest_max_cache_bytes` in SecureStore); evicts `ORDER BY update
 
 ## High-Throughput Upload Engine (`gramjsClient.ts` + `backgroundSync.ts` + `useVaultStore.ts`)
 
-The upload engine is refactored for maximum network throughput and minimal JS bridge / CPU overhead:
+The upload engine is refactored for maximum network throughput and minimal JS bridge / CPU overhead. **File bytes are uploaded as plaintext — no encryption step exists in this path** (verified 2026-10-04; see `crypto-security.md`):
 - **Direct Binary File Reading (`react-native-blob-util`)**: Completely removed Base64 encoding/decoding across the JS bridge. Files are read as binary data directly into native memory buffers.
 - **4 MB Disk Read Blocks (8x I/O Reduction)**: Reads large 4 MB binary blocks from disk instead of reading 512 KB per cycle. Each 4 MB block is sliced in-memory into eight 512 KB MTProto parts using zero-copy `Buffer.subarray()`, reducing disk read operations and bridge round-trips by 800%.
 - **True MTProto Parallelism (`MtprotoSenderPool`)**: Dispatches concurrent chunks in pipelined fashion via `client.invoke()`, utilizing Telegram's native MTProto full-duplex RPC multiplexing over the authenticated, layer-negotiated WebSocket connection. Eliminates socket timeout errors and connection drops associated with raw exported senders.
@@ -37,7 +37,7 @@ The upload engine is refactored for maximum network throughput and minimal JS br
 - **Channel Continuity**: Matches existing channels matching `CloudNest Cloud Storage`, `CloudNest Private Vault [E2EE]`, or any title containing `CloudNest` to guarantee continuity across app re-installs.
 - **Compound Deduplication**: Deduplicates remote files by `(telegram_channel_id, telegram_message_id)` compound keys and scopes primary keys (`file_tg_${sanitizedPeer}_${msg.id}`) to prevent cross-channel ID collisions.
 - **Multi-Touch Recovery Hooks**: Auto-syncs on initial login setup (`create-vault.tsx`), triggers on app boot if an active session exists (`useVaultStore.initialize()`), supports pull-to-refresh (`RefreshControl`) on the Home screen, and provides a manual "Sync with Telegram Cloud" action in Settings.
-- **Memory-Safe On-Demand MTProto Download**: When a user opens or downloads a file whose local cache is missing, `MTProtoClient.downloadFile` fetches the media from Telegram and uses client.iterDownload to stream 512 KB chunks asynchronously from the cloud, appending them sequentially to disk. This completely eliminates OOM (Out-of-Memory) crashes on large files (>100MB), preventing Hermes JavaScript heap OOM crashes on large files (>30–100MB). Includes error banner and retry UI.
+- **Memory-Safe On-Demand MTProto Download**: When a user opens or downloads a file whose local cache is missing, `MTProtoClient.downloadFile` fetches the media from Telegram and uses client.iterDownload to stream 512 KB chunks asynchronously from the cloud, appending them sequentially to disk as-is (plaintext, no decryption step). This completely eliminates OOM (Out-of-Memory) crashes on large files (>100MB), preventing Hermes JavaScript heap OOM crashes on large files (>30–100MB). Includes error banner and retry UI.
 
 ## APK Size Optimization (`android/app/build.gradle` & `gradle.properties`)
 - **ABI Splitting Enabled**: Configured Gradle ABI splits (`armeabi-v7a`, `arm64-v8a`, `x86`, `x86_64`) plus universal APK generation. Reduces per-device APK footprint from ~103 MB down to ~44.6 MB for standard 64-bit ARM Android devices.
@@ -49,6 +49,6 @@ State: `isInitialized`, `session`, `storageStats`, `recentFiles[15]`, `folders`,
 
 ## Gaps
 
-- P0: no native OS background daemon (`expo-task-manager`); CTR/GCM metadata divergence (see `crypto-security.md`).
+- P0: no native OS background daemon (`expo-task-manager`); file-content encryption removed (plaintext on Telegram) while `.enc` suffixes, `[CloudNest E2EE]` captions, `is_encrypted`/`encryption_iv` columns, and zero-knowledge copy still imply encryption — see `crypto-security.md`, `known-gaps.md`, `play-compliance.md`.
 - P1: N+1 folder stats; dead `upload_queue`/`app_settings` tables; taxonomy divergence; full-reload mutations.
 
